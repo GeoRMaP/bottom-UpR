@@ -292,7 +292,7 @@ memory use, not posterior draw identity.
 
 If you use **bottom-UpR** in research, please cite:
 
-> Nnanatu, Chibuzor Christopher & Tatem, Andrew J. (2026). *bottom-UpR: Bayesian Bottom-Up Population Modelling with INLA-SPDE*. R package version 0.2.0. GeoRMaP. https://github.com/GeoRMaP/bottom-UpR
+> Nnanatu, Chibuzor Christopher & Tatem, Andrew J. (2026). *bottom-UpR: Bayesian Bottom-Up Population Modelling with INLA-SPDE*. R package version 0.2.0. WorldPop. https://github.com/GeoRMaP/bottom-UpR
 
 From R, the package citation can be retrieved with:
 
