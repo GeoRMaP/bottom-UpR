@@ -56,10 +56,10 @@ handled on a prediction grid.
 
 ```r
 effects <- list(
-  list(column = "source", model = "iid", prediction = "zero"),
+  list(column = "source", model = "iid", prediction = "known"),
   list(column = "settlement", model = "iid", prediction = "known"),
   list(column = "region_settlement", model = "iid", prediction = "known"),
-  list(column = "ea_id", model = "iid", prediction = "zero")
+  list(column = "ea_id", model = "iid", prediction = "known")
 )
 
 fit <- bottom_up(
@@ -76,7 +76,9 @@ fit <- bottom_up(
 
 This design is not Cameroon-specific: the same mechanism can represent
 district, facility, interviewer, survey wave, household, settlement, source or
-other hierarchical groupings.
+other hierarchical groupings. For a national prediction grid, effects can be
+omitted without changing the fitted model, for example
+`omit_effects = c("source", "ea_id")`.
 
 ## Cross-validation
 
@@ -133,7 +135,8 @@ pred <- predict_bottom_up(
   draws = 1000,
   chunk_size = 50000,
   return_draws = FALSE,
-  aggregate_by = c("region", "division", "national")
+  aggregate_by = c("region", "division", "national"),
+  omit_effects = c("source", "ea_id")
 )
 
 head(pred$summary)
