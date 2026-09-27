@@ -121,12 +121,17 @@ effects <- list(
 # 5. SPDE MESH
 # =============================================================================
 
+mesh_par <- bottom_up_mesh_parameters(
+  ea,
+  coords=c("x_m","y_m")
+)
+
+print(mesh_par[c("max_edge","offset","cutoff","diagonal")])
+
 mesh <- make_bottom_up_mesh(
   ea,
   coords=c("x_m","y_m"),
-  max_edge=c(40000,80000),
-  offset=c(40000,80000),
-  cutoff=10000
+  adaptive=TRUE
 )
 
 saveRDS(mesh,file.path(OUT_DIR,"synthetic_mesh.rds"))
@@ -631,6 +636,7 @@ gamma_grid <- predict_bottom_up(
   newdata=grid,
   population=TRUE,
   draws=250,
+  chunkwise=TRUE,
   chunk_size=500,
   return_draws=FALSE,
   aggregate_by=c("national","region"),
@@ -652,6 +658,7 @@ nb_grid <- predict_bottom_up(
   newdata=grid,
   population=TRUE,
   draws=250,
+  chunkwise=TRUE,
   chunk_size=500,
   return_draws=FALSE,
   aggregate_by=c("national","region"),
