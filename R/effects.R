@@ -42,7 +42,7 @@
     x <- data[[e$column]]
     if (is.null(training_maps)) {
       lev <- unique(as.character(x[!is.na(x)]))
-      map <- setNames(seq_along(lev), lev)
+      map <- stats::setNames(seq_along(lev), lev)
     } else {
       map <- training_maps[[i]]$map
     }
