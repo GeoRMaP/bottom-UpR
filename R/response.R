@@ -40,6 +40,7 @@ detect_response_type <- function(y) {
 #'   hierarchical effects.
 #' @param hierarchical_effects Optional list of arbitrary hierarchical effects.
 #' @param spatial Include an SPDE spatial field?
+#' @param verbose Logical; print progress messages and validation warnings.
 #' @return A `bottom_up_spec` object.
 #' @export
 bottom_up_spec <- function(data, response, buildings=NULL,
@@ -47,7 +48,9 @@ bottom_up_spec <- function(data, response, buildings=NULL,
                            likelihood="auto", covariates=NULL,
                            coords=c("x","y"), random_effects=NULL,
                            hierarchical_effects=NULL,
-                           spatial=TRUE) {
+                           spatial=TRUE,
+                           verbose=TRUE) {
+  .bottom_up_progress(verbose,"Creating model specification")
   response_type <- match.arg(response_type)
   response <- .as_name(response)
   if(!is.null(buildings)) buildings <- .as_name(buildings)
@@ -61,6 +64,8 @@ bottom_up_spec <- function(data, response, buildings=NULL,
   needed <- unique(c(response,buildings,covariates,
                      if(spatial) coords else NULL,effect_cols))
   .validate_columns(data,needed)
+  .warn_missingness(data,needed)
+  if(spatial) .warn_coordinate_scale(data,coords)
   if(length(covariates)) {
     bad_cov <- !vapply(data[covariates],is.numeric,logical(1))
     if(any(bad_cov))
@@ -71,12 +76,21 @@ bottom_up_spec <- function(data, response, buildings=NULL,
   y <- data[[response]]
   detected <- detect_response_type(y)
   type <- if(response_type=="auto") detected else response_type
+  if(response_type!="auto" && response_type!=detected)
+    .bottom_up_warn(
+      "response_type='",response_type,
+      "' overrides automatic detection ('",detected,"')."
+    )
   z <- y[!is.na(y)]
 
   if(type=="count" && (any(z < 0) || !.is_integerish(z)))
     stop("COUNT response must be non-negative and integer-valued.",call.=FALSE)
   if(type=="ppb" && any(z <= 0))
     stop("PPB response must be strictly positive.",call.=FALSE)
+  if(type=="count" && is.null(buildings))
+    .bottom_up_warn("COUNT model has no building exposure column; the model will not include a log(buildings) offset.")
+  if(type=="ppb" && is.null(buildings))
+    .bottom_up_warn("PPB model has no buildings column; population reconstruction from PPB will not be available automatically.")
 
   if(!identical(likelihood,"auto")) {
     likelihood <- .match_likelihood(likelihood)
@@ -85,6 +99,15 @@ bottom_up_spec <- function(data, response, buildings=NULL,
       stop("Likelihood ",likelihood," is incompatible with response type ",type,
            ".",call.=FALSE)
   }
+
+  .warn_sparse_groups(data,effects)
+  .bottom_up_progress(
+    verbose,"Model specification ready",
+    paste0("response_type=",type,", likelihood=",likelihood,
+           ", covariates=",length(covariates %||% character()),
+           ", hierarchical_effects=",length(effects),
+           ", spatial=",spatial)
+  )
 
   structure(list(
     data=data,response=response,buildings=buildings,
