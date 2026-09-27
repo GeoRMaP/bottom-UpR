@@ -184,7 +184,11 @@
 #' @param newdata Optional prediction data frame.
 #' @param population Return population rather than PPB for PPB models.
 #' @param draws Number of joint posterior samples.
-#' @param chunk_size Number of prediction rows processed per chunk.
+#' @param chunkwise Logical; if `TRUE`, process `newdata` in chunks of
+#'   `chunk_size` rows. If `FALSE`, process all prediction rows in one block.
+#'   Joint posterior draw identities are preserved in either mode.
+#' @param chunk_size Number of prediction rows processed per chunk when
+#'   `chunkwise=TRUE`.
 #' @param return_draws Retain cell-by-draw matrix. For large national grids this
 #'   may require substantial memory.
 #' @param aggregate_by Optional character vector of grouping columns in
@@ -201,7 +205,7 @@
 #'   `aggregates`.
 #' @export
 predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
-                              draws=500,chunk_size=50000,
+                              draws=500,chunkwise=TRUE,chunk_size=50000,
                               return_draws=FALSE,
                               aggregate_by=NULL,
                               omit_effects=NULL,
@@ -262,7 +266,9 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
   if (!n) stop("newdata has zero rows.",call.=FALSE)
   draws <- as.integer(draws)
   if (draws < 2) stop("draws must be at least 2.",call.=FALSE)
+  chunkwise <- isTRUE(chunkwise)
   chunk_size <- max(1L,as.integer(chunk_size))
+  if (!chunkwise) chunk_size <- n
 
   set.seed(seed)
   ps <- INLA::inla.posterior.sample(
@@ -402,6 +408,8 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
       aggregates=aggregates,
       aggregate_draws=aggregate_draws,
       n_draws=draws,
+      chunkwise=chunkwise,
+      chunk_size=chunk_size,
       population=population,
       response_type=object$spec$response_type,
       likelihood=object$likelihood
