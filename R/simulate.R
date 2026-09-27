@@ -10,13 +10,21 @@
 #' @param seed Random seed.
 #' @param include_hierarchy Include source, settlement, region and EA identifiers.
 #' @param extent Spatial side length in coordinate units.
+#' @param verbose Logical; print progress messages.
 #' @return A data frame with both code{ppb} and code{population} responses.
 #' @export
 simulate_bottom_up_data <- function(n=200L,seed=123,
                                     include_hierarchy=TRUE,
-                                    extent=300000) {
+                                    extent=300000,
+                                    verbose=TRUE) {
+  .bottom_up_progress(verbose,"Simulating tutorial data",
+                      paste0("n=",n,", extent=",extent,", seed=",seed))
   n <- as.integer(n)
   if(n < 20L) stop("n must be at least 20 for the tutorial simulator.",call.=FALSE)
+  if(!is.finite(extent) || extent <= 0)
+    stop("extent must be a positive finite number.",call.=FALSE)
+  if(n < 50L)
+    .bottom_up_warn("Small synthetic sample size; spatial and cross-validation examples may be unstable.")
   set.seed(seed)
 
   x <- stats::runif(n,0,extent)
@@ -106,5 +114,10 @@ simulate_bottom_up_data <- function(n=200L,seed=123,
     )
   }
 
+  .bottom_up_progress(
+    verbose,"Synthetic tutorial data ready",
+    paste0("rows=",nrow(out),", hierarchy=",include_hierarchy,
+           ", total_buildings=",sum(out$buildings))
+  )
   out
 }
