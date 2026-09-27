@@ -17,8 +17,8 @@
   if (is.null(nm)) return(default)
 
   if (!is.null(exact)) {
-    k <- match(exact,nm)
-    if (!is.na(k)) return(z[k])
+    k <- which(nm==exact | startsWith(nm,paste0(exact,":")))
+    if (length(k)) return(z[k[1]])
   }
 
   if (!is.null(pattern)) {
