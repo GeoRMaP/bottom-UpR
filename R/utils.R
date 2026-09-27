@@ -59,3 +59,66 @@
 .extract_fixed_names <- function(covariates) {
   if(is.null(covariates)) character() else as.character(covariates)
 }
+
+
+.bottom_up_progress <- function(enabled=TRUE, stage, detail=NULL) {
+  if (!isTRUE(enabled)) return(invisible(NULL))
+  msg <- paste0("[bottom-UpR] ",stage)
+  if (!is.null(detail) && nzchar(as.character(detail)))
+    msg <- paste0(msg,": ",detail)
+  message(msg)
+  invisible(NULL)
+}
+
+.bottom_up_warn <- function(..., call.=FALSE, immediate.=FALSE) {
+  warning("[bottom-UpR] ",...,call.=call.,immediate.=immediate.)
+}
+
+.warn_coordinate_scale <- function(data,coords) {
+  if(is.null(coords) || length(coords)!=2L) return(invisible(NULL))
+  if(!all(coords %in% names(data))) return(invisible(NULL))
+  xy <- as.matrix(data[,coords,drop=FALSE])
+  z <- xy[is.finite(xy)]
+  if(!length(z)) return(invisible(NULL))
+  xr <- range(xy[,1],na.rm=TRUE)
+  yr <- range(xy[,2],na.rm=TRUE)
+  # Heuristic only: values bounded like longitude/latitude may indicate degrees.
+  if(all(xr >= -180 & xr <= 180) && all(yr >= -90 & yr <= 90)) {
+    .bottom_up_warn(
+      "Coordinates appear to be longitude/latitude degrees. ",
+      "SPDE mesh distances, block sizes, and range priors use coordinate units; ",
+      "project coordinates before distance-based spatial modelling."
+    )
+  }
+  invisible(NULL)
+}
+
+.warn_sparse_groups <- function(data,effects,min_n=3L) {
+  if(!length(effects)) return(invisible(NULL))
+  for(e in effects) {
+    if(!e$column %in% names(data)) next
+    tab <- table(data[[e$column]],useNA="no")
+    if(length(tab) && any(tab < min_n)) {
+      .bottom_up_warn(
+        "Hierarchical effect '",e$column,
+        "' contains levels with fewer than ",min_n,
+        " observations; posterior estimates for sparse levels may be weakly identified."
+      )
+    }
+  }
+  invisible(NULL)
+}
+
+.warn_missingness <- function(data,cols) {
+  cols <- intersect(cols,names(data))
+  if(!length(cols)) return(invisible(NULL))
+  nmiss <- vapply(data[cols],function(x) sum(is.na(x)),integer(1))
+  bad <- names(nmiss)[nmiss>0]
+  if(length(bad)) {
+    .bottom_up_warn(
+      "Missing values detected in: ",paste(bad,collapse=", "),
+      ". INLA/model functions may drop or fail on incomplete rows; preprocess explicitly."
+    )
+  }
+  invisible(NULL)
+}
