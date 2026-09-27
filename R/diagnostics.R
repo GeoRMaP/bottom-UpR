@@ -258,3 +258,101 @@ plot_bottom_up_exploration <- function(data,response,buildings=NULL,
     buildings_summary=if(is.null(buildings)) NULL else summary(data[[buildings]])
   ))
 }
+
+
+#' Plot posterior hierarchical effects
+#'
+#' @param object Fitted model.
+#' @param effect Effect column, label, or internal name. If omitted, the first
+#'   hierarchical effect is plotted.
+#' @param main Optional title.
+#' @return Invisibly returns plotted posterior summaries with original levels.
+#' @export
+plot_hierarchical_effects <- function(object,effect=NULL,main=NULL) {
+  if(!inherits(object,"bottom_up_fit"))
+    stop("object must be bottom_up_fit.",call.=FALSE)
+  eff <- object$spec$hierarchical_effects
+  if(!length(eff)) stop("Model has no hierarchical effects.",call.=FALSE)
+
+  if(is.null(effect)) {
+    i <- 1L
+  } else {
+    hit <- vapply(eff,function(e)
+      any(c(e$column,e$label,e$internal)==effect),logical(1))
+    if(!any(hit)) stop("Requested hierarchical effect was not found.",call.=FALSE)
+    i <- which(hit)[1]
+  }
+
+  e <- eff[[i]]
+  sm <- object$inla$summary.random[[e$internal]]
+  if(is.null(sm)) stop("Posterior summary for effect was not found.",call.=FALSE)
+
+  mp <- object$effect_maps[[i]]$map
+  inv <- names(mp)[match(sm$ID,unname(mp))]
+  inv[is.na(inv)] <- as.character(sm$ID[is.na(inv)])
+
+  y <- seq_len(nrow(sm))
+  if(is.null(main)) main <- paste("Hierarchical effect:",e$label)
+
+  graphics::plot(
+    sm$mean,y,
+    xlim=range(c(sm$`0.025quant`,sm$`0.975quant`),finite=TRUE),
+    yaxt="n",ylab="",xlab="Posterior effect",main=main
+  )
+  graphics::segments(sm$`0.025quant`,y,sm$`0.975quant`,y)
+  graphics::points(sm$mean,y,pch=19)
+  graphics::axis(2,at=y,labels=inv,las=1,cex.axis=.7)
+  graphics::abline(v=0,lty=2)
+
+  invisible(data.frame(level=inv,sm,row.names=NULL))
+}
+
+#' Cross-validation diagnostic plots
+#'
+#' @param object A `bottom_up_cv` object.
+#' @return Invisibly returns the cross-validation predictions.
+#' @export
+plot_cv_diagnostics <- function(object) {
+  if(!inherits(object,"bottom_up_cv"))
+    stop("object must be bottom_up_cv.",call.=FALSE)
+
+  d <- object$predictions
+  d$residual <- d$observed-d$predicted
+
+  old <- graphics::par(no.readonly=TRUE)
+  on.exit(graphics::par(old),add=TRUE)
+  graphics::par(mfrow=c(2,2))
+
+  graphics::plot(
+    d$observed,d$predicted,
+    xlab="Observed population",ylab="CV predicted population",
+    main=paste("Observed vs predicted:",object$method)
+  )
+  graphics::abline(0,1,lty=2)
+
+  graphics::plot(
+    d$predicted,d$residual,
+    xlab="CV predicted population",ylab="Observed - predicted",
+    main="Held-out residuals"
+  )
+  graphics::abline(h=0,lty=2)
+
+  graphics::hist(
+    d$residual,breaks="FD",
+    xlab="Held-out residual",main="Residual distribution"
+  )
+
+  cover <- aggregate(
+    d$observed>=d$lower & d$observed<=d$upper,
+    list(fold=d$fold),
+    mean,na.rm=TRUE
+  )
+  graphics::barplot(
+    cover$x,names.arg=cover$fold,ylim=c(0,1),
+    xlab="Fold",ylab="95% interval coverage",
+    main="Coverage by fold"
+  )
+  graphics::abline(h=.95,lty=2)
+
+  invisible(d)
+}
