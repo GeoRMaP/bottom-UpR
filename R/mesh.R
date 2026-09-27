@@ -17,6 +17,7 @@
 #'   outer mesh extension.
 #' @param cutoff_fraction Fraction of the study-area diagonal used as cutoff.
 #' @param min_cutoff Optional lower bound for cutoff in coordinate units.
+#' @param verbose Logical; print progress messages.
 #' @return A list with code{max_edge}, code{offset}, code{cutoff}, spatial
 #'   ranges, diagonal length, and coordinate centre.
 #' @export
@@ -28,9 +29,12 @@ bottom_up_mesh_parameters <- function(
     inner_offset_fraction=0.05,
     outer_offset_fraction=0.10,
     cutoff_fraction=0.005,
-    min_cutoff=0) {
+    min_cutoff=0,
+    verbose=TRUE) {
 
+  .bottom_up_progress(verbose,"Deriving adaptive mesh parameters")
   .validate_columns(data,coords)
+  .warn_coordinate_scale(data,coords)
   xy <- as.matrix(data[,coords,drop=FALSE])
   if (ncol(xy) != 2L)
     stop("coords must identify exactly two coordinate columns.",call.=FALSE)
@@ -52,6 +56,19 @@ bottom_up_mesh_parameters <- function(
   max_edge <- diagonal*c(inner_edge_fraction,outer_edge_fraction)
   offset <- diagonal*c(inner_offset_fraction,outer_offset_fraction)
   cutoff <- max(diagonal*cutoff_fraction,min_cutoff)
+
+  if(any(max_edge <= 0) || any(offset < 0) || cutoff < 0)
+    stop("Derived mesh parameters must be non-negative, with positive max_edge.",call.=FALSE)
+  if(max_edge[1] >= max_edge[2])
+    .bottom_up_warn("Adaptive inner max_edge is not smaller than outer max_edge.")
+  .bottom_up_progress(
+    verbose,
+    "Adaptive mesh parameters ready",
+    paste0("diagonal=",signif(diagonal,5),
+           ", max_edge=",paste(signif(max_edge,5),collapse="/"),
+           ", offset=",paste(signif(offset,5),collapse="/"),
+           ", cutoff=",signif(cutoff,5))
+  )
 
   list(
     max_edge=max_edge,
@@ -101,16 +118,21 @@ make_bottom_up_mesh <- function(
     max_edge=NULL,
     offset=NULL,
     cutoff=NULL,
-    adaptive_args=list()) {
+    adaptive_args=list(),
+    verbose=TRUE) {
 
+  .bottom_up_progress(verbose,"Building SPDE mesh")
   .require_inla()
   .validate_columns(data,coords)
+  .warn_coordinate_scale(data,coords)
   loc <- as.matrix(data[,coords,drop=FALSE])
+  if(any(!is.finite(loc)))
+    stop("Mesh coordinates must be finite.",call.=FALSE)
 
   if (adaptive) {
     auto <- do.call(
       bottom_up_mesh_parameters,
-      c(list(data=data,coords=coords),adaptive_args)
+      c(list(data=data,coords=coords,verbose=verbose),adaptive_args)
     )
     if (is.null(max_edge)) max_edge <- auto$max_edge
     if (is.null(offset)) offset <- auto$offset
@@ -122,6 +144,23 @@ make_bottom_up_mesh <- function(
     auto <- NULL
   }
 
+  if(length(max_edge)!=2L || length(offset)!=2L)
+    stop("max_edge and offset must each have length 2.",call.=FALSE)
+  if(any(max_edge<=0) || any(offset<0) || cutoff<0)
+    stop("Mesh distances must be non-negative and max_edge strictly positive.",call.=FALSE)
+  if(max_edge[1] >= max_edge[2])
+    .bottom_up_warn("Inner max_edge is not smaller than outer max_edge; check mesh settings.")
+  if(cutoff > max_edge[1])
+    .bottom_up_warn("cutoff exceeds inner max_edge; this may over-thin input locations.")
+
+  .bottom_up_progress(
+    verbose,"Creating triangulation",
+    paste0("n_locations=",nrow(loc),
+           ", max_edge=",paste(signif(max_edge,5),collapse="/"),
+           ", offset=",paste(signif(offset,5),collapse="/"),
+           ", cutoff=",signif(cutoff,5))
+  )
+
   mesh <- INLA::inla.mesh.2d(
     loc=loc,
     max.edge=max_edge,
@@ -129,6 +168,8 @@ make_bottom_up_mesh <- function(
     cutoff=cutoff
   )
 
+  .bottom_up_progress(verbose,"SPDE mesh complete",
+                      paste0("mesh nodes=",mesh$n))
   attr(mesh,"bottom_up_mesh_parameters") <- list(
     adaptive=adaptive,
     max_edge=max_edge,
