@@ -124,17 +124,18 @@ if(any(!is.finite(ea$ppb) | ea$ppb <= 0))
 
 # These are manuscript-style Cameroon effects, but all are optional.
 #
-# prediction="known": use the fitted level if the grid contains a known level.
-# prediction="zero" : omit that effect for national grid prediction.
+# prediction="known": use a fitted level when it is represented in newdata.
+# prediction="zero" : always omit an effect for every newdata prediction.
 #
-# For example, source and EA-specific effects are omitted from the national grid,
-# while settlement and region-by-settlement can be mapped where available.
+# Here all effects are retained when their levels are known. National-grid
+# prediction later uses omit_effects= to suppress survey-source and EA-specific
+# effects while keeping settlement and region-by-settlement effects.
 
 CAMEROON_EFFECTS <- list(
   list(
     column=COL_SOURCE,
     model="iid",
-    prediction="zero",
+    prediction="known",
     label="survey source"
   ),
   list(
@@ -152,7 +153,7 @@ CAMEROON_EFFECTS <- list(
   list(
     column=COL_EA_ID,
     model="iid",
-    prediction="zero",
+    prediction="known",
     label="EA-level residual heterogeneity"
   )
 )
@@ -584,6 +585,7 @@ if(RUN_GRID_PREDICTION && file.exists(GRID_FILE)) {
     chunk_size=GRID_CHUNK_SIZE,
     return_draws=FALSE,
     aggregate_by=aggregate_cols,
+    omit_effects=c(COL_SOURCE,COL_EA_ID),
     seed=1001
   )
 
@@ -595,6 +597,7 @@ if(RUN_GRID_PREDICTION && file.exists(GRID_FILE)) {
     chunk_size=GRID_CHUNK_SIZE,
     return_draws=FALSE,
     aggregate_by=aggregate_cols,
+    omit_effects=c(COL_SOURCE,COL_EA_ID),
     seed=1001
   )
 
