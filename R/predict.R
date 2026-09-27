@@ -120,6 +120,21 @@
   acc
 }
 
+.posterior_selection <- function(object) {
+  sel <- list()
+  if (object$spec$spatial) {
+    sel[[".bottom_intercept"]] <- 0L
+    sel[[".bottom_spatial"]] <- 0L
+  } else {
+    sel[["(Intercept)"]] <- 0L
+  }
+  for (nm in object$spec$covariates) sel[[nm]] <- 0L
+  if (length(object$spec$hierarchical_effects)) {
+    for (e in object$spec$hierarchical_effects) sel[[e$internal]] <- 0L
+  }
+  sel
+}
+
 .summarise_draw_matrix <- function(x) {
   data.frame(
     mean=rowMeans(x),
@@ -221,7 +236,14 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
   chunk_size <- max(1L,as.integer(chunk_size))
 
   set.seed(seed)
-  ps <- INLA::inla.posterior.sample(draws,object$inla)
+  ps <- INLA::inla.posterior.sample(
+    n=draws,
+    result=object$inla,
+    selection=.posterior_selection(object),
+    seed=as.integer(seed),
+    num.threads=1L,
+    add.names=TRUE
+  )
 
   keep_draws <- if(return_draws)
     matrix(NA_real_,nrow=n,ncol=draws) else NULL
