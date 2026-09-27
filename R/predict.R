@@ -200,6 +200,7 @@
 #'   this adds one-half of the sampled IID variance to the linear predictor.
 #'   This is useful for unobserved EA-level heterogeneity on a national grid.
 #' @param seed Random seed for posterior sampling.
+#' @param verbose Logical; print progress messages and prediction diagnostics.
 #' @return If `newdata=NULL`, a data frame. Otherwise a
 #'   `bottom_up_prediction` object with `summary`, optional `draws`, and
 #'   `aggregates`.
@@ -210,11 +211,14 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
                               aggregate_by=NULL,
                               omit_effects=NULL,
                               marginalize_effects=NULL,
-                              seed=123) {
+                              seed=123,
+                              verbose=TRUE) {
   if(!inherits(object,"bottom_up_fit"))
     stop("object must be bottom_up_fit.",call.=FALSE)
+  .bottom_up_progress(verbose,"Starting posterior prediction")
 
   if (is.null(newdata)) {
+    .bottom_up_progress(verbose,"Returning fitted-support predictions")
     sm <- object$inla$summary.fitted.values
     out <- data.frame(
       mean=sm$mean,
@@ -241,6 +245,8 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
 
   .require_inla()
   if (!is.data.frame(newdata)) newdata <- as.data.frame(newdata)
+  if (!nrow(newdata)) stop("newdata has zero rows.",call.=FALSE)
+  if (object$spec$spatial) .warn_coordinate_scale(newdata,object$spec$coords)
 
   needed <- unique(c(
     object$spec$covariates,
@@ -256,6 +262,7 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
     aggregate_by
   ))
   .validate_columns(newdata,needed)
+  .warn_missingness(newdata,needed)
 
   newdata <- .apply_fit_scaling(object,newdata)
   newdata <- .prepare_newdata_effects(
@@ -263,13 +270,28 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
   )
 
   n <- nrow(newdata)
-  if (!n) stop("newdata has zero rows.",call.=FALSE)
   draws <- as.integer(draws)
   if (draws < 2) stop("draws must be at least 2.",call.=FALSE)
   chunkwise <- isTRUE(chunkwise)
   chunk_size <- max(1L,as.integer(chunk_size))
   if (!chunkwise) chunk_size <- n
+  if (chunkwise && chunk_size >= n)
+    .bottom_up_warn("chunkwise=TRUE but chunk_size is at least nrow(newdata); prediction will use one chunk.")
+  if (return_draws && as.double(n)*as.double(draws) > 5e7)
+    .bottom_up_warn(
+      "return_draws=TRUE will allocate a large cell-by-draw matrix (",
+      format(as.double(n)*as.double(draws),scientific=FALSE),
+      " values). Consider return_draws=FALSE and aggregate_by= for large grids."
+    )
+  .bottom_up_progress(
+    verbose,
+    "Prediction plan",
+    paste0("rows=",n,", draws=",draws,", chunkwise=",chunkwise,
+           ", chunk_size=",chunk_size)
+  )
 
+  .bottom_up_progress(verbose,"Sampling joint posterior",
+                      paste0("draws=",draws))
   set.seed(seed)
   ps <- INLA::inla.posterior.sample(
     n=draws,
@@ -291,8 +313,16 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
   acc <- .init_aggregate_accumulators(newdata,aggregate_by,draws)
 
   starts <- seq.int(1L,n,by=chunk_size)
+  n_chunks <- length(starts)
 
-  for (st in starts) {
+  for (chunk_i in seq_along(starts)) {
+    st <- starts[[chunk_i]]
+    .bottom_up_progress(
+      verbose,
+      "Predicting chunk",
+      paste0(chunk_i,"/",n_chunks,
+             " (rows ",st,"-",min(n,st+chunk_size-1L),")")
+    )
     en <- min(n,st+chunk_size-1L)
     rows <- st:en
     nd <- newdata[rows,,drop=FALSE]
@@ -313,6 +343,10 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
     if (!is.null(object$spec$buildings)) {
       b <- nd[[object$spec$buildings]]
       structural_zero <- !is.finite(b) | b <= 0
+      if(any(!is.finite(b)))
+        .bottom_up_warn("Non-finite building exposure detected in prediction chunk; affected cells are treated as structural zeros.")
+      if(any(b < 0,na.rm=TRUE))
+        .bottom_up_warn("Negative building exposure detected in prediction data; affected cells are treated as structural zeros.")
     } else {
       b <- rep(1,nr)
     }
@@ -400,6 +434,12 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
       cbind(group=rownames(z$draws),ans,row.names=NULL)
     })
   }
+
+  .bottom_up_progress(
+    verbose,
+    "Posterior prediction complete",
+    paste0("rows=",n,", chunks=",n_chunks)
+  )
 
   structure(
     list(
