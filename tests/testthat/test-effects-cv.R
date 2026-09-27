@@ -44,3 +44,23 @@ test_that("effect omission can be requested by column or label", {
   expect_true(bottom.UpR:::.effect_omitted(e,"source"))
   expect_true(bottom.UpR:::.effect_omitted(e,"survey source"))
 })
+
+
+test_that("adaptive mesh parameters scale with spatial footprint", {
+  d1 <- data.frame(
+    x = c(0, 100, 0, 100),
+    y = c(0, 0, 100, 100)
+  )
+  d2 <- data.frame(
+    x = d1$x * 10,
+    y = d1$y * 10
+  )
+
+  p1 <- bottom_up_mesh_parameters(d1, coords = c("x", "y"))
+  p2 <- bottom_up_mesh_parameters(d2, coords = c("x", "y"))
+
+  expect_equal(p2$diagonal / p1$diagonal, 10)
+  expect_equal(p2$max_edge / p1$max_edge, c(10, 10))
+  expect_equal(p2$offset / p1$offset, c(10, 10))
+  expect_equal(p2$cutoff / p1$cutoff, 10)
+})
