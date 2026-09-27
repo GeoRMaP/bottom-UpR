@@ -78,7 +78,8 @@ This design is not Cameroon-specific: the same mechanism can represent
 district, facility, interviewer, survey wave, household, settlement, source or
 other hierarchical groupings. For a national prediction grid, effects can be
 omitted without changing the fitted model, for example
-`omit_effects = c("source", "ea_id")`.
+`omit_effects = "source",
+  marginalize_effects = "ea_id"`.
 
 ## Cross-validation
 
@@ -143,7 +144,8 @@ pred <- predict_bottom_up(
   chunk_size = 50000,
   return_draws = FALSE,
   aggregate_by = c("region", "division", "national"),
-  omit_effects = c("source", "ea_id")
+  omit_effects = "source",
+  marginalize_effects = "ea_id"
 )
 
 head(pred$summary)
