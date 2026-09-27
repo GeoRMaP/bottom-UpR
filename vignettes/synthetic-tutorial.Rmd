@@ -1,0 +1,379 @@
+---
+title: "Synthetic-data tutorial: complete bottom-UpR workflow"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Synthetic-data tutorial: complete bottom-UpR workflow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE, collapse = TRUE, comment = "#>")
+```
+
+# Purpose
+
+This tutorial demonstrates the full `bottom-UpR` workflow on reproducible
+synthetic data. The synthetic generator is intended for teaching and software
+testing. It does not reproduce the data-generating process of Cameroon or any
+other specific country.
+
+# 1. Simulate enumeration-area data
+
+```r
+library(bottom.UpR)
+library(INLA)
+
+ea <- simulate_bottom_up_data(
+  n = 250,
+  seed = 2026,
+  include_hierarchy = TRUE
+)
+
+head(ea)
+```
+
+The data contain mapped building counts, projected coordinates, five continuous
+covariates, PPB and count responses, and optional source/settlement/region/EA
+grouping variables.
+
+```r
+candidate_covariates <- c(
+  "roads", "water", "market", "slope", "night_lights"
+)
+```
+
+# 2. Explore the data
+
+```r
+plot_bottom_up_exploration(
+  ea,
+  response = "population_count",
+  buildings = "buildings",
+  covariates = candidate_covariates
+)
+
+plot_bottom_up_exploration(
+  ea,
+  response = "ppb",
+  buildings = "buildings",
+  covariates = candidate_covariates
+)
+```
+
+# 3. Define an optional hierarchy
+
+```r
+effects <- list(
+  list(column = "source", model = "iid", prediction = "known"),
+  list(column = "settlement", model = "iid", prediction = "known"),
+  list(column = "region_settlement", model = "iid", prediction = "known"),
+  list(column = "ea_id", model = "iid", prediction = "known")
+)
+```
+
+All effects are optional. A simpler model can use
+`hierarchical_effects = NULL`.
+
+# 4. Build the SPDE mesh
+
+```r
+mesh <- make_bottom_up_mesh(
+  ea,
+  coords = c("x_m", "y_m"),
+  max_edge = c(40000, 80000),
+  offset = c(40000, 80000),
+  cutoff = 10000
+)
+```
+
+# 5. Fit Gamma PPB and Negative-Binomial count models
+
+```r
+gamma_fit <- bottom_up(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  mesh = mesh,
+  prior_range = c(100000, 0.05),
+  prior_sigma = c(1, 0.05),
+  config = TRUE
+)
+
+nb_fit <- bottom_up(
+  data = ea,
+  response = "population_count",
+  buildings = "buildings",
+  response_type = "count",
+  likelihood = "negative binomial",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  mesh = mesh,
+  prior_range = c(100000, 0.05),
+  prior_sigma = c(1, 0.05),
+  config = TRUE
+)
+```
+
+For PPB models, predicted PPB is multiplied by mapped buildings when population
+is requested. For count models, buildings already enter through the log
+exposure and must not be multiplied again.
+
+# 6. Automatic likelihood selection
+
+```r
+ppb_auto <- bottom_up(
+  ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "auto",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  mesh = mesh
+)
+
+ppb_auto$selection$scores
+
+count_auto <- bottom_up(
+  ea,
+  response = "population_count",
+  buildings = "buildings",
+  response_type = "count",
+  likelihood = "auto",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  mesh = mesh
+)
+
+count_auto$selection$scores
+```
+
+PPB compares Gamma with Lognormal; COUNT compares Poisson with Negative
+Binomial. The current default ranks compatible candidates by mean log CPO.
+
+# 7. Observation-level posterior predictions
+
+```r
+gamma_obs <- observation_predictions(
+  gamma_fit,
+  draws = 300,
+  seed = 11
+)
+
+head(gamma_obs)
+
+plot_observed_fitted(gamma_fit, draws = 300)
+plot_bottom_up_residuals(gamma_fit, draws = 300)
+plot_posterior_fixed(gamma_fit)
+plot_posterior_hyperparameters(gamma_fit)
+plot_hierarchical_effects(gamma_fit, effect = "source")
+plot_spatial_field(gamma_fit)
+```
+
+# 8. Spatial cross-validation with fold-specific selection
+
+```r
+selector_args <- list(
+  fallback = 3,
+  prior_range = c(100000, 0.05),
+  prior_sigma = c(1, 0.05)
+)
+
+cv100 <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "spatial_block",
+  folds = 5,
+  block_size = 100000,
+  covariate_selector = bottom_up_inla_selector,
+  selector_args = selector_args,
+  standardize = TRUE,
+  prediction_draws = 100,
+  mesh = mesh,
+  seed = 102
+)
+
+cv100$metrics
+cv100$metrics_by_fold
+cv100$selected_covariates
+
+plot_observed_fitted(cv100)
+plot_cv_diagnostics(cv100)
+
+bottom_up_residual_moran(
+  cv100,
+  distances = c(50000, 100000, 150000)
+)
+```
+
+Scaling and covariate selection are estimated from each training fold only.
+
+# 9. Random CV, LORO and LOSO
+
+```r
+cv_random <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "random",
+  folds = 5,
+  covariate_selector = bottom_up_inla_selector,
+  selector_args = selector_args,
+  mesh = mesh
+)
+
+loro <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "loro",
+  group = "region",
+  covariate_selector = bottom_up_inla_selector,
+  selector_args = selector_args,
+  mesh = mesh
+)
+
+loso <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "loso",
+  group = "source",
+  covariate_selector = bottom_up_inla_selector,
+  selector_args = selector_args,
+  mesh = mesh
+)
+```
+
+# 10. Build a synthetic fine prediction grid
+
+```r
+grid <- expand.grid(
+  x_m = seq(5000, 295000, length.out = 45),
+  y_m = seq(5000, 295000, length.out = 45)
+)
+
+set.seed(303)
+n <- nrow(grid)
+
+grid$roads <- rnorm(n)
+grid$water <- rnorm(n)
+grid$market <- rnorm(n)
+grid$slope <- rnorm(n)
+grid$night_lights <- rnorm(n)
+
+grid$buildings <- rpois(
+  n,
+  lambda = exp(2 + 0.15 * grid$roads - 0.08 * grid$slope)
+)
+
+grid$settlement <- sample(
+  c("urban", "periurban", "rural"),
+  n, replace = TRUE
+)
+
+grid$region <- sample(
+  paste0("R", 1:5),
+  n, replace = TRUE
+)
+
+grid$region_settlement <- interaction(
+  grid$region,
+  grid$settlement,
+  drop = TRUE
+)
+
+grid$national <- "Syntheticland"
+```
+
+# 11. Joint-posterior fine-grid prediction
+
+```r
+gamma_grid <- predict_bottom_up(
+  gamma_fit,
+  newdata = grid,
+  population = TRUE,
+  draws = 250,
+  chunk_size = 500,
+  return_draws = FALSE,
+  aggregate_by = c("national", "region"),
+  omit_effects = "source",
+  marginalize_effects = "ea_id",
+  seed = 401
+)
+
+head(gamma_grid$summary)
+gamma_grid$aggregates$national
+gamma_grid$aggregates$region
+```
+
+The same joint posterior sample identities are retained across chunks.
+Administrative uncertainty is therefore computed from draw-wise totals.
+
+# 12. Count-model grid prediction
+
+```r
+nb_grid <- predict_bottom_up(
+  nb_fit,
+  newdata = grid,
+  population = TRUE,
+  draws = 250,
+  chunk_size = 500,
+  aggregate_by = c("national", "region"),
+  omit_effects = "source",
+  marginalize_effects = "ea_id",
+  seed = 402
+)
+
+nb_grid$aggregates$national
+```
+
+# 13. Structural-zero check
+
+```r
+zero_cells <- which(grid$buildings == 0)
+
+if (length(zero_cells)) {
+  stopifnot(all(gamma_grid$summary$mean[zero_cells] == 0))
+  stopifnot(all(nb_grid$summary$mean[zero_cells] == 0))
+}
+```
+
+# 14. Full executable script
+
+The repository also contains a single executable script:
+
+`inst/examples/synthetic_tutorial.R`
+
+It runs all tutorial stages, writes tables and figures, and saves fitted models
+and fine-grid posterior summaries.
