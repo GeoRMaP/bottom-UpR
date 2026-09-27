@@ -10,7 +10,7 @@ bottom_up_cv(data, response, buildings = NULL,
   folds = 5L, block_size = 100000, group = NULL,
   covariate_selector = NULL, standardize = TRUE,
   selector_args = list(), prediction_draws = 200L,
-  mesh = NULL, mesh_args = list(), seed = 123, ...)
+  mesh = NULL, mesh_args = list(), seed = 123, verbose = TRUE, ...)
 }
 \arguments{
 \item{data}{Modelling data frame.}
@@ -33,6 +33,7 @@ bottom_up_cv(data, response, buildings = NULL,
 \item{mesh}{Optional common SPDE mesh.}
 \item{mesh_args}{Arguments for mesh construction if \code{mesh} is absent.}
 \item{seed}{Random seed.}
+\item{verbose}{Logical; print fold construction, selection, fit, prediction, and metric progress.}
 \item{...}{Additional fitting arguments.}
 }
 \value{A \code{bottom_up_cv} object.}
