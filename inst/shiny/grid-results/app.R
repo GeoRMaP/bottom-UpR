@@ -151,6 +151,17 @@ server <- function(input, output, session) {
       "Buildings: ", d$buildings
     )
 
+    metric_title <- switch(
+      metric,
+      mean = "Posterior mean population",
+      median = "Posterior median population",
+      lower = "Lower 95% interval",
+      upper = "Upper 95% interval",
+      sd = "Posterior SD",
+      cv = "Coefficient of variation",
+      buildings = "Mapped buildings"
+    )
+
     m <- leaflet(d) |>
       addProviderTiles(providers$CartoDB.Positron) |>
       addCircleMarkers(
@@ -166,26 +177,7 @@ server <- function(input, output, session) {
         "bottomright",
         pal = pal,
         values = vals,
-        title = names(which(
-          c(
-            mean = "Posterior mean population",
-            median = "Posterior median population",
-            lower = "Lower 95% interval",
-            upper = "Upper 95% interval",
-            sd = "Posterior SD",
-            cv = "Coefficient of variation",
-            buildings = "Mapped buildings"
-          ) == switch(
-            metric,
-            mean = "Posterior mean population",
-            median = "Posterior median population",
-            lower = "Lower 95% interval",
-            upper = "Upper 95% interval",
-            sd = "Posterior SD",
-            cv = "Coefficient of variation",
-            buildings = "Mapped buildings"
-          )
-        ))
+        title = metric_title
       )
 
     if (isTRUE(input$structural)) {
