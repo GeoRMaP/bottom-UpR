@@ -61,6 +61,12 @@ bottom_up_spec <- function(data, response, buildings=NULL,
   needed <- unique(c(response,buildings,covariates,
                      if(spatial) coords else NULL,effect_cols))
   .validate_columns(data,needed)
+  if(length(covariates)) {
+    bad_cov <- !vapply(data[covariates],is.numeric,logical(1))
+    if(any(bad_cov))
+      stop("Covariates must currently be numeric. Non-numeric: ",
+           paste(covariates[bad_cov],collapse=", "),call.=FALSE)
+  }
 
   y <- data[[response]]
   detected <- detect_response_type(y)
