@@ -7,22 +7,110 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-`bottom-UpR` separates the *response support* from the *likelihood*. COUNT
-responses are candidates for Poisson and negative binomial models. PPB
-responses are candidates for Gamma and lognormal models.
-
-```{r, eval=FALSE}
-fit <- bottom_up(
-  data = ea,
-  response = "population",
-  buildings = "buildings",
-  covariates = c("x1","x2"),
-  coords = c("x","y")
-)
-print(fit)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
 ```
 
-For count responses, mapped buildings enter as a log exposure. For PPB
-responses, building exposure is not part of the likelihood; population is
-obtained from PPB multiplied by mapped buildings. Exposure is therefore used
-exactly once.
+# Overview
+
+`bottom-UpR` provides a generic interface for Bayesian bottom-up population
+modelling using INLA-SPDE. COUNT responses can be modelled with Poisson or
+negative-binomial likelihoods, while PPB responses can be modelled with Gamma
+or lognormal likelihoods.
+
+# Flexible hierarchy
+
+Hierarchical effects are optional:
+
+```r
+effects <- list(
+  list(column = "source", model = "iid", prediction = "known"),
+  list(column = "settlement", model = "iid", prediction = "known"),
+  list(column = "region_settlement", model = "iid", prediction = "known"),
+  list(column = "ea_id", model = "iid", prediction = "known")
+)
+
+fit <- bottom_up(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = c("roads", "water", "market"),
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects
+)
+```
+
+Any of these effects can be removed. Other grouping effects can be substituted
+without changing the package internals.
+
+# Validation with fold-specific selection
+
+```r
+cv100 <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "spatial_block",
+  folds = 5,
+  block_size = 100000,
+  covariate_selector = bottom_up_inla_selector,
+  selector_args = list(fallback = 8),
+  prediction_draws = 300
+)
+
+cv100$metrics
+cv100$metrics_by_fold
+cv100$selected_covariates
+plot_cv_diagnostics(cv100)
+```
+
+Scaling and the selector are both estimated inside each training fold.
+
+# Observation-level posterior results
+
+```r
+obs <- observation_predictions(fit, draws = 500)
+head(obs)
+
+plot_observed_fitted(fit)
+plot_bottom_up_residuals(fit)
+plot_posterior_fixed(fit)
+plot_posterior_hyperparameters(fit)
+plot_hierarchical_effects(fit, effect = "source")
+plot_spatial_field(fit)
+```
+
+# Fine-grid joint-posterior prediction
+
+The same posterior sample IDs are retained across every prediction chunk:
+
+```r
+grid100m$national <- "Cameroon"
+
+pred <- predict_bottom_up(
+  fit,
+  newdata = grid100m,
+  population = TRUE,
+  draws = 1000,
+  chunk_size = 50000,
+  return_draws = FALSE,
+  aggregate_by = c("national", "region", "division"),
+  omit_effects = c("source", "ea_id")
+)
+
+head(pred$summary)
+pred$aggregates$national
+pred$aggregates$region
+pred$aggregates$division
+```
+
+For PPB models, building exposure is applied by multiplying PPB by mapped
+buildings. For count models, buildings are already included as an offset and are
+not multiplied again. Cells without mapped buildings are structural zeros.
