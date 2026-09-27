@@ -82,8 +82,16 @@
   if(!length(z)) return(invisible(NULL))
   xr <- range(xy[,1],na.rm=TRUE)
   yr <- range(xy[,2],na.rm=TRUE)
-  # Heuristic only: values bounded like longitude/latitude may indicate degrees.
-  if(all(xr >= -180 & xr <= 180) && all(yr >= -90 & yr <= 90)) {
+  # Conservative heuristic only: coordinate names or a dense small-domain
+  # coordinate cloud may indicate longitude/latitude degrees.
+  nms <- tolower(coords)
+  name_hint <- any(grepl("(^lon$|longitude|^lat$|latitude)",nms))
+  bounded <- all(xr >= -180 & xr <= 180) && all(yr >= -90 & yr <= 90)
+  dense_degree_like <- bounded &&
+    length(unique(xy[,1])) >= 20L &&
+    length(unique(xy[,2])) >= 20L &&
+    diff(xr) <= 30 && diff(yr) <= 30
+  if(name_hint || dense_degree_like) {
     .bottom_up_warn(
       "Coordinates appear to be longitude/latitude degrees. ",
       "SPDE mesh distances, block sizes, and range priors use coordinate units; ",
