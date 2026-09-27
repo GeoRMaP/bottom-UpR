@@ -483,6 +483,22 @@ run_cv <- function(response,response_type,likelihood,method,
   plot_cv_diagnostics(z)
   grDevices::dev.off()
 
+  moran <- bottom_up_residual_moran(
+    z,distances=c(50000,100000,150000)
+  )
+  write.csv(
+    moran,
+    file.path(OUT_DIR,paste0(tag,"_residual_moran.csv")),
+    row.names=FALSE
+  )
+
+  grDevices::png(
+    file.path(OUT_DIR,paste0(tag,"_residual_moran.png")),
+    width=1400,height=1100,res=180
+  )
+  plot_residual_moran(z,distances=c(50000,100000,150000))
+  grDevices::dev.off()
+
   z
 }
 
