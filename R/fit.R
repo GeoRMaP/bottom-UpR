@@ -51,8 +51,11 @@
                             A=list(A,1),
                             effects=list(idx,fixed),tag="est")
     dat <- INLA::inla.stack.data(stk)
-    dat$.bottom_spde <- spde
+    # Keep the SPDE model object in the formula environment; it is not a
+    # column of the INLA data frame.
+    .bottom_spde <- spde
     form <- .make_formula(spec,TRUE)
+    environment(form) <- environment()
     fit <- INLA::inla(form,family=family,data=dat,
                       control.predictor=list(A=INLA::inla.stack.A(stk),compute=TRUE),
                       control.compute=list(cpo=TRUE,waic=compute_waic,
