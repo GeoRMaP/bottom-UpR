@@ -198,3 +198,34 @@ posterior prediction with national/subnational aggregation.
 Version 0.2.0 is a development release. The repository has been updated with the
 full workflow APIs, but a full `R CMD check` in an R environment with R-INLA
 installed is still required before treating the package as a stable release.
+
+
+## Synthetic-data tutorial
+
+A complete reproducible tutorial is included for users who want to learn the
+package without supplying real population data.
+
+Generate tutorial data directly in R:
+
+```r
+ea <- simulate_bottom_up_data(
+  n = 250,
+  seed = 2026,
+  include_hierarchy = TRUE
+)
+```
+
+The full executable workflow is:
+
+`inst/examples/synthetic_tutorial.R`
+
+The accompanying vignette is:
+
+`vignettes/synthetic-tutorial.Rmd`
+
+The tutorial covers PPB and count models, Gamma/Lognormal/Poisson/Negative
+Binomial likelihoods, optional hierarchical effects, automatic likelihood
+selection, random and spatial-block CV, LORO/LOSO, observation-level posterior
+predictions, observed-versus-fitted and posterior diagnostics, residual Moran's
+I, fine-grid joint-posterior prediction, structural zeros, and draw-wise
+administrative aggregation.
