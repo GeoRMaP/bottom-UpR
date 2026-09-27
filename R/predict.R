@@ -57,18 +57,40 @@
   1/p
 }
 
-.effect_omitted <- function(e,omit_effects=NULL) {
-  identical(e$prediction,"zero") ||
-    (!is.null(omit_effects) &&
-       any(c(e$column,e$label,e$internal) %in% omit_effects))
+.effect_matches <- function(e,names=NULL) {
+  !is.null(names) && any(c(e$column,e$label,e$internal) %in% names)
 }
 
-.prepare_newdata_effects <- function(object,newdata,omit_effects=NULL) {
+.effect_omitted <- function(e,omit_effects=NULL) {
+  identical(e$prediction,"zero") || .effect_matches(e,omit_effects)
+}
+
+.iid_variance <- function(sample,effect_internal) {
+  hp <- sample$hyperpar
+  if (is.null(hp)) return(0)
+  if (is.matrix(hp)) hp <- hp[,1]
+  nm <- names(hp)
+  if (is.null(nm)) nm <- rownames(sample$hyperpar)
+  if (is.null(nm)) return(0)
+  k <- which(
+    startsWith(tolower(nm),tolower(paste0("Precision for ",effect_internal))) |
+    (grepl("precision",nm,ignore.case=TRUE) &
+       grepl(effect_internal,nm,fixed=TRUE))
+  )
+  if (!length(k)) return(0)
+  p <- as.numeric(hp[k[1]])
+  if (!is.finite(p) || p <= 0) return(0)
+  1/p
+}
+
+.prepare_newdata_effects <- function(object,newdata,omit_effects=NULL,
+                                     marginalize_effects=NULL) {
   if (!length(object$spec$hierarchical_effects)) return(newdata)
 
   for (i in seq_along(object$spec$hierarchical_effects)) {
     e <- object$spec$hierarchical_effects[[i]]
-    if (.effect_omitted(e,omit_effects)) {
+    if (.effect_omitted(e,omit_effects) ||
+        .effect_matches(e,marginalize_effects)) {
       newdata[[e$internal]] <- NA_integer_
       next
     }
@@ -168,9 +190,11 @@
 #' @param aggregate_by Optional character vector of grouping columns in
 #'   `newdata`. Administrative totals are accumulated draw-wise.
 #' @param omit_effects Optional character vector of hierarchical effect columns,
-#'   labels, or internal names to omit for this prediction target. This is useful
-#'   for national grids where survey-source or EA-specific effects should not be
-#'   assigned.
+#'   labels, or internal names to set to zero for this prediction target.
+#' @param marginalize_effects Optional character vector of IID hierarchical
+#'   effects to integrate over on the response-mean scale. Under a log link,
+#'   this adds one-half of the sampled IID variance to the linear predictor.
+#'   This is useful for unobserved EA-level heterogeneity on a national grid.
 #' @param seed Random seed for posterior sampling.
 #' @return If `newdata=NULL`, a data frame. Otherwise a
 #'   `bottom_up_prediction` object with `summary`, optional `draws`, and
@@ -181,6 +205,7 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
                               return_draws=FALSE,
                               aggregate_by=NULL,
                               omit_effects=NULL,
+                              marginalize_effects=NULL,
                               seed=123) {
   if(!inherits(object,"bottom_up_fit"))
     stop("object must be bottom_up_fit.",call.=FALSE)
@@ -218,8 +243,10 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
     if(object$spec$spatial) object$spec$coords else NULL,
     if(!is.null(object$spec$buildings)) object$spec$buildings else NULL,
     if(length(object$spec$hierarchical_effects)) {
-      eff_keep <- Filter(function(e) !.effect_omitted(e,omit_effects),
-                         object$spec$hierarchical_effects)
+      eff_keep <- Filter(function(e)
+        !.effect_omitted(e,omit_effects) &&
+        !.effect_matches(e,marginalize_effects),
+        object$spec$hierarchical_effects)
       if(length(eff_keep)) vapply(eff_keep,`[[`,character(1),"column") else NULL
     } else NULL,
     aggregate_by
@@ -227,7 +254,9 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
   .validate_columns(newdata,needed)
 
   newdata <- .apply_fit_scaling(object,newdata)
-  newdata <- .prepare_newdata_effects(object,newdata,omit_effects)
+  newdata <- .prepare_newdata_effects(
+    object,newdata,omit_effects,marginalize_effects
+  )
 
   n <- nrow(newdata)
   if (!n) stop("newdata has zero rows.",call.=FALSE)
@@ -301,6 +330,13 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
         for (i in seq_along(object$spec$hierarchical_effects)) {
           e <- object$spec$hierarchical_effects[[i]]
           if (.effect_omitted(e,omit_effects)) next
+          if (.effect_matches(e,marginalize_effects)) {
+            if (!identical(e$model,"iid"))
+              stop("Only IID hierarchical effects can currently be marginalized.",
+                   call.=FALSE)
+            eta <- eta + 0.5*.iid_variance(smp,e$internal)
+            next
+          }
           id <- nd[[e$internal]]
           field <- .sample_field(
             smp,
