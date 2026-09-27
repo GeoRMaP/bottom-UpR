@@ -102,7 +102,8 @@ pred <- predict_bottom_up(
   chunk_size = 50000,
   return_draws = FALSE,
   aggregate_by = c("national", "region", "division"),
-  omit_effects = c("source", "ea_id")
+  omit_effects = "source",
+  marginalize_effects = "ea_id"
 )
 
 head(pred$summary)
@@ -114,3 +115,23 @@ pred$aggregates$division
 For PPB models, building exposure is applied by multiplying PPB by mapped
 buildings. For count models, buildings are already included as an offset and are
 not multiplied again. Cells without mapped buildings are structural zeros.
+
+
+# Omission versus marginalization of hierarchical effects
+
+For a prediction target that does not belong to an observed data source, use
+`omit_effects` to set that source contribution to zero. For latent IID
+heterogeneity that should still contribute to the expected response but has no
+specific grid-cell level, use `marginalize_effects`. For example:
+
+```r
+pred <- predict_bottom_up(
+  fit,
+  newdata = grid100m,
+  omit_effects = "source",
+  marginalize_effects = "ea_id"
+)
+```
+
+The current marginalization implementation is for IID Gaussian hierarchical
+effects under the log link.
