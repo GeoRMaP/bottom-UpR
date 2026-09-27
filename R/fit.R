@@ -38,10 +38,20 @@
 
 .fit_candidate <- function(spec, likelihood, mesh=NULL,
                            prior_range=c(100,.05), prior_sigma=c(1,.05),
-                           config=FALSE, compute_waic=TRUE) {
+                           config=FALSE, compute_waic=TRUE,
+                           verbose=TRUE) {
+  .bottom_up_progress(verbose,"Preparing model fit",
+                      paste0("likelihood=",likelihood,
+                             ", spatial=",spec$spatial))
   .require_inla()
   prep <- .prepare_fit_data(spec,likelihood)
   d <- prep$data
+  .warn_missingness(
+    d,
+    unique(c(spec$response,spec$buildings,spec$covariates,spec$coords))
+  )
+  .warn_sparse_groups(d,spec$hierarchical_effects)
+  if(spec$spatial) .warn_coordinate_scale(d,spec$coords)
 
   family <- switch(
     likelihood,
@@ -52,7 +62,10 @@
   )
 
   if(spec$spatial) {
-    if(is.null(mesh)) mesh <- make_bottom_up_mesh(d,spec$coords)
+    if(is.null(mesh)) {
+      .bottom_up_progress(verbose,"No mesh supplied","constructing mesh from model locations")
+      mesh <- make_bottom_up_mesh(d,spec$coords,verbose=verbose)
+    }
 
     spde <- INLA::inla.spde2.pcmatern(
       mesh, alpha=2,
@@ -91,6 +104,7 @@
     form <- .make_formula(spec,TRUE)
     environment(form) <- environment()
 
+    .bottom_up_progress(verbose,"Running INLA","spatial model")
     fit <- INLA::inla(
       form,
       family=family,
@@ -108,6 +122,7 @@
     )
   } else {
     form <- .make_formula(spec,FALSE)
+    .bottom_up_progress(verbose,"Running INLA","non-spatial model")
     fit <- INLA::inla(
       form,
       family=family,
@@ -122,6 +137,13 @@
     )
     spde <- NULL
   }
+
+  if(!is.null(fit$cpo$failure) && any(fit$cpo$failure > 0,na.rm=TRUE))
+    .bottom_up_warn("INLA reported CPO failures for some observations; inspect fit$cpo$failure.")
+  if(!is.null(fit$mode$status) && !identical(fit$mode$status,0L))
+    .bottom_up_warn("INLA optimization returned a non-zero mode status; inspect fit$mode.")
+  .bottom_up_progress(verbose,"Model fit complete",
+                      paste0("likelihood=",likelihood))
 
   list(
     inla=fit,
@@ -145,24 +167,29 @@
 #' @param mesh Optional common mesh.
 #' @param prior_range PC prior range specification.
 #' @param prior_sigma PC prior spatial-SD specification.
+#' @param verbose Logical; print progress messages.
 #' @return List containing selected likelihood and candidate scores.
 #' @export
 select_likelihood <- function(spec,mesh=NULL,
                               prior_range=c(100,.05),
-                              prior_sigma=c(1,.05)) {
+                              prior_sigma=c(1,.05),
+                              verbose=TRUE) {
   if(!inherits(spec,"bottom_up_spec"))
     stop("spec must be bottom_up_spec.",call.=FALSE)
 
+  .bottom_up_progress(verbose,"Selecting likelihood",
+                      paste0("response_type=",spec$response_type))
   candidates <- if(spec$response_type=="count")
     c("poisson","nbinomial") else c("gamma","lognormal")
 
   if(spec$spatial && is.null(mesh))
-    mesh <- make_bottom_up_mesh(spec$data,spec$coords)
+    mesh <- make_bottom_up_mesh(spec$data,spec$coords,verbose=verbose)
 
   fits <- lapply(candidates,function(z)
     .fit_candidate(
       spec,z,mesh,prior_range,prior_sigma,
-      config=FALSE
+      config=FALSE,
+      verbose=verbose
     )
   )
 
@@ -179,6 +206,11 @@ select_likelihood <- function(spec,mesh=NULL,
   )
   tab <- tab[order(tab$mean_log_cpo,decreasing=TRUE),,drop=FALSE]
 
+  if(!is.finite(tab$mean_log_cpo[1]))
+    .bottom_up_warn("Likelihood comparison produced non-finite mean log CPO scores.")
+  .bottom_up_progress(verbose,"Likelihood selection complete",
+                      paste0("selected=",tab$likelihood[1]))
+
   list(
     selected=tab$likelihood[1],
     scores=tab,
@@ -194,14 +226,17 @@ select_likelihood <- function(spec,mesh=NULL,
 #' @param prior_range PC range prior.
 #' @param prior_sigma PC spatial-SD prior.
 #' @param config Enable INLA joint-posterior configuration.
+#' @param verbose Logical; print progress messages.
 #' @return A `bottom_up_fit`.
 #' @export
 fit_bottom_up <- function(spec,mesh=NULL,
                           prior_range=c(100,.05),
                           prior_sigma=c(1,.05),
-                          config=TRUE) {
+                          config=TRUE,
+                          verbose=TRUE) {
+  .bottom_up_progress(verbose,"Starting bottom-UpR fit")
   if(spec$likelihood=="auto") {
-    sel <- select_likelihood(spec,mesh,prior_range,prior_sigma)
+    sel <- select_likelihood(spec,mesh,prior_range,prior_sigma,verbose=verbose)
     likelihood <- sel$selected
     mesh <- sel$mesh
   } else {
@@ -212,9 +247,12 @@ fit_bottom_up <- function(spec,mesh=NULL,
   z <- .fit_candidate(
     spec,likelihood,mesh,
     prior_range,prior_sigma,
-    config=config
+    config=config,
+    verbose=verbose
   )
 
+  .bottom_up_progress(verbose,"bottom-UpR fit finished",
+                      paste0("likelihood=",likelihood))
   structure(
     c(z,list(
       spec=spec,
@@ -233,6 +271,7 @@ fit_bottom_up <- function(spec,mesh=NULL,
 #' effects.
 #'
 #' @inheritParams bottom_up_spec
+#' @param verbose Logical; print progress messages.
 #' @param ... Additional arguments passed to `fit_bottom_up`.
 #' @return A fitted `bottom_up_fit`.
 #' @export
@@ -241,7 +280,8 @@ bottom_up <- function(data,response,buildings=NULL,
                       likelihood="auto",covariates=NULL,
                       coords=c("x","y"),random_effects=NULL,
                       hierarchical_effects=NULL,
-                      spatial=TRUE,...) {
+                      spatial=TRUE,verbose=TRUE,...) {
+  .bottom_up_progress(verbose,"Validating model specification")
   spec <- bottom_up_spec(
     data=data,
     response=response,
@@ -254,7 +294,7 @@ bottom_up <- function(data,response,buildings=NULL,
     hierarchical_effects=hierarchical_effects,
     spatial=spatial
   )
-  fit_bottom_up(spec,...)
+  fit_bottom_up(spec,verbose=verbose,...)
 }
 
 #' @export
