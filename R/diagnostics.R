@@ -6,11 +6,14 @@
 #' @param object A `bottom_up_fit`.
 #' @param draws Number of joint posterior samples.
 #' @param seed Random seed.
+#' @param verbose Logical; print progress messages.
 #' @return Data frame of observation-level posterior results.
 #' @export
-observation_predictions <- function(object,draws=500,seed=123) {
+observation_predictions <- function(object,draws=500,seed=123,verbose=TRUE) {
   if(!inherits(object,"bottom_up_fit"))
     stop("object must be bottom_up_fit.",call.=FALSE)
+  .bottom_up_progress(verbose,"Generating observation-level posterior predictions",
+                      paste0("draws=",draws))
 
   # Training data are already on the scale used for model fitting, so suppress
   # any external CV scaling when predicting back at observations.
@@ -23,7 +26,8 @@ observation_predictions <- function(object,draws=500,seed=123) {
     population=TRUE,
     draws=draws,
     return_draws=FALSE,
-    seed=seed
+    seed=seed,
+    verbose=verbose
   )$summary
 
   object$scaling <- old_scaling
@@ -36,7 +40,7 @@ observation_predictions <- function(object,draws=500,seed=123) {
     object$spec$data[[object$spec$response]]
   }
 
-  data.frame(
+  ans <- data.frame(
     row_id=seq_along(obs),
     observed=obs,
     fitted=pr$mean,
@@ -46,6 +50,13 @@ observation_predictions <- function(object,draws=500,seed=123) {
     residual=obs-pr$mean,
     covered95=obs>=pr$lower & obs<=pr$upper
   )
+  if(any(!is.finite(ans$fitted)))
+    .bottom_up_warn("Non-finite fitted values detected in observation-level predictions.")
+  .bottom_up_progress(
+    verbose,"Observation-level predictions complete",
+    paste0("n=",nrow(ans),", coverage95=",signif(mean(ans$covered95,na.rm=TRUE),4))
+  )
+  ans
 }
 
 #' Plot observed versus fitted values
