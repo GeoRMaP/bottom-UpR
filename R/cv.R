@@ -27,7 +27,7 @@
   block <- interaction(bx,by,drop=TRUE)
   tab <- sort(table(block),decreasing=TRUE)
   load <- rep(0,k)
-  map <- setNames(integer(length(tab)),names(tab))
+  map <- stats::setNames(integer(length(tab)),names(tab))
   set.seed(seed)
   for (b in names(tab)) {
     choices <- which(load==min(load))
@@ -331,8 +331,8 @@ bottom_up_cv <- function(data,response,buildings=NULL,
       predictions=predictions,
       metrics=overall,
       metrics_by_fold=metrics_by_fold,
-      selected_covariates=setNames(selected_sets,as.character(fold_labels)),
-      selected_likelihoods=setNames(likelihoods,as.character(fold_labels)),
+      selected_covariates=stats::setNames(selected_sets,as.character(fold_labels)),
+      selected_likelihoods=stats::setNames(likelihoods,as.character(fold_labels)),
       fold_id=fold_id,
       block_size=if(method=="spatial_block") block_size else NULL,
       group=group,
