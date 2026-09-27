@@ -3,13 +3,14 @@
 \title{Simulate synthetic bottom-up population data}
 \usage{
 simulate_bottom_up_data(n = 200L, seed = 123,
-  include_hierarchy = TRUE, extent = 300000)
+  include_hierarchy = TRUE, extent = 300000, verbose = TRUE)
 }
 \arguments{
 \item{n}{Number of synthetic enumeration areas.}
 \item{seed}{Random seed.}
 \item{include_hierarchy}{Include source, settlement, region and EA identifiers.}
 \item{extent}{Spatial side length in coordinate units.}
+\item{verbose}{Logical; print simulation progress.}
 }
 \value{A synthetic data frame containing mapped buildings, coordinates,
 covariates, PPB and count responses, and optional hierarchical grouping variables.}
