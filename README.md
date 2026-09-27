@@ -114,6 +114,13 @@ cv100$metrics
 cv100$metrics_by_fold
 cv100$selected_covariates
 plot_observed_fitted(cv100)
+plot_cv_diagnostics(cv100)
+
+# Held-out residual spatial autocorrelation
+bottom_up_residual_moran(
+  cv100,
+  distances = c(50000, 100000, 150000)
+)
 ```
 
 The supplied `bottom_up_inla_selector()` is an optional package rule based on
@@ -143,6 +150,9 @@ head(pred$summary)
 pred$aggregates$region
 pred$aggregates$division
 pred$aggregates$national
+
+# Raw draw-wise totals are retained too
+pred$aggregate_draws$national
 ```
 
 For PPB models, predicted PPB is multiplied by mapped buildings exactly once.
