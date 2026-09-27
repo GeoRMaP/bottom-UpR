@@ -7,4 +7,19 @@ bottom_up_inla_selector(train_data, response, buildings = NULL,
   coords = c("x", "y"), hierarchical_effects = NULL,
   spatial = TRUE, level = 0.95, fallback = 0L, ...)
 }
-\description{Optional selector retaining fixed effects whose posterior credible intervals exclude zero, with an optional strongest-signal fallback.}
+\arguments{
+\item{train_data}{Training-fold data only.}
+\item{response}{Response column.}
+\item{buildings}{Optional building/exposure column.}
+\item{candidate_covariates}{Candidate fixed effects.}
+\item{response_type}{Count or PPB.}
+\item{likelihood}{Automatic or explicit likelihood.}
+\item{coords}{Projected coordinate columns.}
+\item{hierarchical_effects}{Optional hierarchy.}
+\item{spatial}{Include an SPDE field in the selection model.}
+\item{level}{Posterior credible level.}
+\item{fallback}{Number of strongest signals retained if none exclude zero.}
+\item{...}{Additional fitting arguments.}
+}
+\value{Character vector of selected covariate names.}
+\description{Optional generic INLA selector; users may supply another selector to \code{bottom_up_cv}.}
