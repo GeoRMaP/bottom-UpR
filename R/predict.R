@@ -33,7 +33,7 @@
   nm <- .latent_names(sample)
   z <- .latent_vector(sample)
   if (is.null(nm)) return(rep(0,n))
-  k <- grep(paste0("^",prefix,":"),nm)
+  k <- which(startsWith(nm,paste0(prefix,":")))
   if (!length(k)) return(rep(0,n))
   ids <- suppressWarnings(as.integer(sub(".*:","",nm[k])))
   out <- rep(0,n)
@@ -252,12 +252,9 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
     for (s in seq_len(draws)) {
       smp <- ps[[s]]
 
-      intercept <- .sample_named(
-        smp,
-        exact="(Intercept)",
-        pattern="^Intercept$|^\(Intercept\)$",
-        default=0
-      )
+      intercept <- .sample_named(smp,exact="(Intercept)",default=NA_real_)
+      if (!is.finite(intercept))
+        intercept <- .sample_named(smp,exact="Intercept",default=0)
       eta <- rep(intercept,nr)
 
       for (nm in object$spec$covariates) {
@@ -272,7 +269,7 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
           id <- nd[[e$internal]]
           field <- .sample_field(
             smp,
-            gsub("\\.","\\\\.",e$internal),
+            e$internal,
             length(object$effect_maps[[i]]$map)
           )
           ok <- !is.na(id) & id >= 1 & id <= length(field)
@@ -281,7 +278,7 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
       }
 
       if (object$spec$spatial) {
-        w <- .sample_field(smp,"\\.bottom_spatial",object$mesh$n)
+        w <- .sample_field(smp,".bottom_spatial",object$mesh$n)
         eta <- eta + as.numeric(A %*% w)
       }
 
