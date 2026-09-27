@@ -81,3 +81,31 @@ test_that("bundled Shiny demo directories are installed", {
   expect_true(file.exists(grid_app))
   expect_true(file.exists(compare_app))
 })
+
+
+test_that("progress helper obeys verbose and warnings are prefixed", {
+  expect_message(
+    bottom.UpR:::.bottom_up_progress(TRUE, "Testing", "progress"),
+    "\\[bottom-UpR\\] Testing: progress"
+  )
+
+  expect_silent(
+    bottom.UpR:::.bottom_up_progress(FALSE, "Testing", "progress")
+  )
+
+  expect_warning(
+    bottom.UpR:::.bottom_up_warn("test warning"),
+    "\\[bottom-UpR\\] test warning"
+  )
+})
+
+test_that("synthetic simulator supports quiet mode", {
+  expect_silent(
+    d <- simulate_bottom_up_data(
+      n = 50,
+      seed = 1,
+      verbose = FALSE
+    )
+  )
+  expect_equal(nrow(d), 50)
+})
