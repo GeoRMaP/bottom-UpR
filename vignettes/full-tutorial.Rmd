@@ -1665,3 +1665,58 @@ These applications intentionally use synthetic grids. They can be copied and
 adapted so that their internal demonstration data are replaced by a real
 `predict_bottom_up()` result and its accompanying coordinate/administrative
 columns.
+
+
+# Progress reporting and warnings
+
+Major `bottom-UpR` workflow functions print progress messages by default.
+Messages are prefixed with `[bottom-UpR]` so long model runs can be followed
+from data validation through mesh construction, INLA fitting, posterior
+sampling, chunk-wise prediction, cross-validation folds, and aggregation.
+
+For example:
+
+```text
+[bottom-UpR] Starting bottom-UpR fit
+[bottom-UpR] Running INLA: spatial model
+[bottom-UpR] Model fit complete: likelihood=gamma
+[bottom-UpR] Prediction plan: rows=2000000, draws=1000, chunkwise=TRUE, chunk_size=50000
+[bottom-UpR] Predicting chunk: 1/40 (rows 1-50000)
+```
+
+Set `verbose = FALSE` when progress output is not wanted:
+
+```r
+pred <- predict_bottom_up(
+  gamma_fit,
+  newdata = grid,
+  draws = 500,
+  chunkwise = TRUE,
+  chunk_size = 50000,
+  verbose = FALSE
+)
+```
+
+Warnings remain visible when progress is disabled. The package issues warnings
+for potentially important modelling or data conditions rather than silently
+continuing, including:
+
+- coordinates that look like longitude/latitude degrees when distance-based
+  spatial settings are being used;
+- missing values in model or prediction inputs;
+- hierarchical grouping levels with very few observations;
+- count models without building exposure;
+- PPB models without a building column for automatic population reconstruction;
+- explicit response-type overrides that disagree with automatic detection;
+- unusual mesh edge/cutoff relationships;
+- INLA CPO or optimization warnings;
+- likelihood-selection scores that are not finite;
+- covariate-selection fallback activation;
+- small cross-validation holdout folds;
+- zero selected covariates in a fold;
+- non-finite or negative building exposures in prediction inputs;
+- potentially very large in-memory posterior draw matrices;
+- missing aggregation group labels or non-finite draw values.
+
+Warnings should be reviewed rather than automatically suppressed, because many
+of them indicate a mismatch between the data and the intended model semantics.
