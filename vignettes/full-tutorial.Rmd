@@ -1578,3 +1578,90 @@ For real applications:
 - document prediction-time treatment of hierarchical effects;
 - retain reproducible seeds, package versions, and model specifications.
 
+
+
+# Interactive Shiny demonstrations
+
+The package includes interactive demonstrations for presenting fine-grid
+posterior outputs.
+
+Install the optional dependencies:
+
+```r
+install.packages(
+  c(
+    "shiny",
+    "leaflet"
+  )
+)
+```
+
+## Gridded posterior explorer
+
+Launch:
+
+```r
+run_bottom_up_shiny(
+  "grid"
+)
+```
+
+The app provides an interactive synthetic grid with selectable layers for:
+
+- posterior mean population;
+- posterior median population;
+- lower and upper 95% interval limits;
+- posterior standard deviation;
+- coefficient of variation;
+- mapped buildings.
+
+Structural-zero cells can be highlighted explicitly. The app also contains
+distribution and administrative-summary tabs.
+
+## Model-comparison explorer
+
+Launch:
+
+```r
+run_bottom_up_shiny(
+  "compare"
+)
+```
+
+This demonstration compares two synthetic gridded posterior surfaces. It is a
+template for comparing, for example:
+
+- Gamma PPB versus Negative Binomial COUNT results;
+- Gamma versus Lognormal PPB results;
+- Poisson versus Negative Binomial count results;
+- alternative covariate specifications;
+- mesh/prior sensitivity analyses;
+- alternative building layers;
+- alternative validation-informed final models.
+
+The application includes maps of both surfaces, absolute and percentage
+differences, a cell-level comparison scatter plot, regional totals, and
+uncertainty comparisons.
+
+## Reusing the bundled Shiny source
+
+The installed application directories can be found with:
+
+```r
+system.file(
+  "shiny",
+  "grid-results",
+  package = "bottom.UpR"
+)
+
+system.file(
+  "shiny",
+  "model-comparison",
+  package = "bottom.UpR"
+)
+```
+
+These applications intentionally use synthetic grids. They can be copied and
+adapted so that their internal demonstration data are replaced by a real
+`predict_bottom_up()` result and its accompanying coordinate/administrative
+columns.
