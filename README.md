@@ -327,3 +327,59 @@ and open the full tutorial with:
 ```r
 vignette("full-tutorial", package = "bottom.UpR")
 ```
+
+
+## Shiny gridded-result demos
+
+Two interactive demonstrations are bundled with the package. They use synthetic
+gridded posterior results so they can be launched without external data.
+
+Install the optional app dependencies:
+
+```r
+install.packages(c("shiny", "leaflet"))
+```
+
+Launch the posterior grid explorer:
+
+```r
+run_bottom_up_shiny("grid")
+```
+
+The grid explorer provides:
+
+- an interactive posterior population map;
+- posterior mean, median, lower/upper interval, SD and CV layers;
+- mapped-building display;
+- structural-zero highlighting;
+- region filtering;
+- posterior-result distributions;
+- region-level summaries.
+
+Launch the model-comparison application:
+
+```r
+run_bottom_up_shiny("compare")
+```
+
+The comparison app demonstrates how two gridded population surfaces can be
+examined interactively using:
+
+- model A and model B population layers;
+- absolute grid-cell differences;
+- percentage differences;
+- uncertainty (CV) comparison;
+- observed spatial patterns in disagreements;
+- cell-level model scatter plots;
+- regional population-total comparison.
+
+The bundled app source files are located under:
+
+`inst/shiny/grid-results/`
+
+and
+
+`inst/shiny/model-comparison/`
+
+They can be used as templates for project-specific Shiny applications that read
+the outputs returned by `predict_bottom_up()`.
