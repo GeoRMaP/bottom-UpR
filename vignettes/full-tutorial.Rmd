@@ -1,0 +1,1580 @@
+---
+title: "bottom-UpR: Full Tutorial"
+author:
+  - "Chibuzor Christopher Nnanatu"
+  - "Andrew J Tatem"
+date: "2026"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{bottom-UpR: Full Tutorial}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  eval = FALSE,
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+# Introduction
+
+`bottom-UpR` is an R package for Bayesian bottom-up population modelling with
+INLA-SPDE. It supports both people-per-building (PPB) and population-count
+formulations, optional hierarchical effects, spatial random fields, model
+validation, joint-posterior prediction on fine spatial grids, and draw-wise
+administrative aggregation.
+
+This tutorial is designed to be self-contained. It uses synthetic data so that
+the complete workflow can be reproduced without access to confidential or
+country-specific population data.
+
+The package currently supports four response-likelihood combinations:
+
+| Response support | Likelihood |
+|---|---|
+| PPB | Gamma |
+| PPB | Lognormal |
+| COUNT | Poisson |
+| COUNT | Negative Binomial |
+
+For `likelihood = "auto"`, `bottom-UpR` compares the compatible likelihoods
+within the selected response support.
+
+The tutorial covers:
+
+1. installation and setup;
+2. PPB and count response semantics;
+3. synthetic data generation;
+4. exploratory analysis;
+5. optional and adaptable hierarchical effects;
+6. data-adaptive mesh construction;
+7. Gamma, Lognormal, Poisson, and Negative Binomial models;
+8. automatic likelihood selection;
+9. observation-level posterior results;
+10. posterior and residual diagnostics;
+11. fold-specific covariate selection;
+12. random and spatial cross-validation;
+13. LORO and LOSO validation;
+14. residual Moran diagnostics;
+15. fine-grid posterior prediction;
+16. chunk-wise prediction for large grids;
+17. structural zeros;
+18. hierarchical-effect omission and marginalisation;
+19. draw-wise administrative aggregation;
+20. a complete synthetic end-to-end workflow.
+
+# Installation
+
+Install R-INLA first:
+
+```r
+install.packages(
+  "INLA",
+  repos = c(
+    getOption("repos"),
+    INLA = "https://inla.r-inla-download.org/R/stable"
+  ),
+  dependencies = TRUE
+)
+```
+
+Then install `bottom-UpR` from GitHub:
+
+```r
+install.packages("remotes")
+
+remotes::install_github(
+  "GeoRMaP/bottom-UpR",
+  force = TRUE,
+  build_vignettes = FALSE
+)
+```
+
+Load the package:
+
+```r
+library(bottom.UpR)
+library(INLA)
+
+packageVersion("bottom.UpR")
+```
+
+# Core modelling principle
+
+A bottom-up population model combines an outcome model with mapped building
+exposure.
+
+## PPB formulation
+
+For a PPB model,
+
+[
+D_i = rac{Y_i}{B_i},
+]
+
+where:
+
+- (Y_i) is population;
+- (B_i) is mapped building exposure;
+- (D_i) is people per building.
+
+A log-link model can be written schematically as:
+
+[
+log(mu_i)
+=
+eta_0 + X_ieta + s(u_i) + z_i.
+]
+
+For prediction, population is reconstructed as:
+
+[
+widehat{Y}_g
+=
+widehat{D}_g B_g.
+]
+
+The building exposure is therefore applied after PPB prediction.
+
+## Count formulation
+
+For a count model,
+
+[
+Y_i sim 	ext{Poisson}(mu_i)
+]
+
+or
+
+[
+Y_i sim 	ext{Negative Binomial}(mu_i,	heta),
+]
+
+with
+
+[
+log(mu_i)
+=
+eta_0 + X_ieta + s(u_i) + z_i + log(B_i).
+]
+
+The building exposure is already inside the model through the offset.
+Therefore, predicted count population must **not** be multiplied by buildings
+again.
+
+This distinction is central to the package and prevents double application of
+building exposure.
+
+# Synthetic tutorial data
+
+Generate a reproducible synthetic EA-level data set:
+
+```r
+ea <- simulate_bottom_up_data(
+  n = 250,
+  seed = 2026,
+  include_hierarchy = TRUE,
+  extent = 300000
+)
+
+head(ea)
+```
+
+The synthetic data include:
+
+```r
+names(ea)
+```
+
+Typical variables are:
+
+- `ea_id`: synthetic EA identifier;
+- `x_m`, `y_m`: projected coordinates;
+- `buildings`: mapped building count;
+- `roads`, `water`, `market`, `slope`, `night_lights`: covariates;
+- `ppb`: positive continuous PPB response;
+- `population_from_ppb`: population implied by the PPB response;
+- `population_count`: simulated count response;
+- `source`: data source;
+- `settlement`: settlement type;
+- `region`: region;
+- `region_settlement`: region-by-settlement interaction.
+
+Define candidate covariates:
+
+```r
+candidate_covariates <- c(
+  "roads",
+  "water",
+  "market",
+  "slope",
+  "night_lights"
+)
+```
+
+# Exploratory analysis
+
+The package provides a compact exploratory plotting helper:
+
+```r
+plot_bottom_up_exploration(
+  ea,
+  response = "population_count",
+  buildings = "buildings",
+  covariates = candidate_covariates
+)
+```
+
+For PPB:
+
+```r
+plot_bottom_up_exploration(
+  ea,
+  response = "ppb",
+  buildings = "buildings",
+  covariates = candidate_covariates
+)
+```
+
+Useful additional checks include:
+
+```r
+summary(ea$population_count)
+summary(ea$ppb)
+summary(ea$buildings)
+
+table(ea$settlement)
+table(ea$source)
+table(ea$region)
+```
+
+# Response-type detection
+
+The package can infer response support:
+
+```r
+detect_response_type(ea$population_count)
+detect_response_type(ea$ppb)
+```
+
+Integer-valued non-negative responses are interpreted as counts. Positive,
+non-integer continuous responses are interpreted as PPB.
+
+Because a rounded PPB variable could look integer-valued, response support can
+always be overridden explicitly:
+
+```r
+response_type = "ppb"
+```
+
+or
+
+```r
+response_type = "count"
+```
+
+# Optional hierarchical effects
+
+Hierarchical effects are entirely optional.
+
+A model with no hierarchical effects can use:
+
+```r
+hierarchical_effects = NULL
+```
+
+For a richer model:
+
+```r
+effects <- list(
+  list(
+    column = "source",
+    model = "iid",
+    prediction = "known",
+    label = "survey source"
+  ),
+  list(
+    column = "settlement",
+    model = "iid",
+    prediction = "known",
+    label = "settlement class"
+  ),
+  list(
+    column = "region_settlement",
+    model = "iid",
+    prediction = "known",
+    label = "region x settlement"
+  ),
+  list(
+    column = "ea_id",
+    model = "iid",
+    prediction = "known",
+    label = "EA residual heterogeneity"
+  )
+)
+```
+
+The same mechanism can represent any grouping structure, for example:
+
+- district;
+- province;
+- survey wave;
+- interviewer;
+- facility;
+- household;
+- school;
+- health zone;
+- settlement type;
+- data source.
+
+For simple IID effects, character-vector shorthand is also supported:
+
+```r
+random_effects <- c(
+  "source",
+  "settlement"
+)
+```
+
+# Data-adaptive SPDE mesh
+
+Mesh geometry should be compatible with the spatial scale of the data.
+
+The package can derive mesh parameters from the geographic footprint:
+
+```r
+mesh_par <- bottom_up_mesh_parameters(
+  ea,
+  coords = c("x_m", "y_m")
+)
+
+mesh_par$max_edge
+mesh_par$offset
+mesh_par$cutoff
+mesh_par$diagonal
+mesh_par$centre
+```
+
+Build a fully adaptive mesh:
+
+```r
+mesh <- make_bottom_up_mesh(
+  ea,
+  coords = c("x_m", "y_m"),
+  adaptive = TRUE
+)
+```
+
+Inspect the parameters actually used:
+
+```r
+attr(
+  mesh,
+  "bottom_up_mesh_parameters"
+)
+```
+
+The automatic defaults scale mesh distances to the diagonal spatial extent of
+the data. Distances remain in the coordinate units.
+
+Custom adaptive fractions can be supplied:
+
+```r
+mesh <- make_bottom_up_mesh(
+  ea,
+  coords = c("x_m", "y_m"),
+  adaptive = TRUE,
+  adaptive_args = list(
+    inner_edge_fraction = 0.06,
+    outer_edge_fraction = 0.15,
+    inner_offset_fraction = 0.05,
+    outer_offset_fraction = 0.12,
+    cutoff_fraction = 0.003
+  )
+)
+```
+
+You can also override only selected values:
+
+```r
+mesh <- make_bottom_up_mesh(
+  ea,
+  coords = c("x_m", "y_m"),
+  adaptive = TRUE,
+  cutoff = 10000
+)
+```
+
+# Spatial prior specification
+
+A common PC-prior form is:
+
+```r
+prior_range <- c(
+  100000,
+  0.05
+)
+
+prior_sigma <- c(
+  1,
+  0.05
+)
+```
+
+When coordinates are in metres, this corresponds to:
+
+[
+P(ho < 100	ext{ km}) = 0.05
+]
+
+and
+
+[
+P(sigma > 1) = 0.05.
+]
+
+Coordinate units and prior-range units must agree.
+
+# Gamma PPB model
+
+Fit a Gamma PPB model:
+
+```r
+gamma_fit <- bottom_up(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+
+  response_type = "ppb",
+  likelihood = "gamma",
+
+  covariates = candidate_covariates,
+
+  coords = c(
+    "x_m",
+    "y_m"
+  ),
+
+  hierarchical_effects = effects,
+
+  spatial = TRUE,
+  mesh = mesh,
+
+  prior_range = prior_range,
+  prior_sigma = prior_sigma,
+
+  config = TRUE
+)
+```
+
+Inspect:
+
+```r
+gamma_fit
+summary(gamma_fit)
+```
+
+Fixed effects:
+
+```r
+gamma_fit$inla$summary.fixed
+```
+
+Hyperparameters:
+
+```r
+gamma_fit$inla$summary.hyperpar
+```
+
+# Lognormal PPB model
+
+Fit a Lognormal PPB model:
+
+```r
+lognormal_fit <- bottom_up(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+
+  response_type = "ppb",
+  likelihood = "lognormal",
+
+  covariates = candidate_covariates,
+
+  coords = c(
+    "x_m",
+    "y_m"
+  ),
+
+  hierarchical_effects = effects,
+
+  spatial = TRUE,
+  mesh = mesh,
+
+  prior_range = prior_range,
+  prior_sigma = prior_sigma,
+
+  config = TRUE
+)
+```
+
+# Poisson count model
+
+```r
+poisson_fit <- bottom_up(
+  data = ea,
+  response = "population_count",
+  buildings = "buildings",
+
+  response_type = "count",
+  likelihood = "poisson",
+
+  covariates = candidate_covariates,
+
+  coords = c(
+    "x_m",
+    "y_m"
+  ),
+
+  hierarchical_effects = effects,
+
+  spatial = TRUE,
+  mesh = mesh,
+
+  prior_range = prior_range,
+  prior_sigma = prior_sigma,
+
+  config = TRUE
+)
+```
+
+# Negative Binomial count model
+
+```r
+nb_fit <- bottom_up(
+  data = ea,
+  response = "population_count",
+  buildings = "buildings",
+
+  response_type = "count",
+  likelihood = "negative binomial",
+
+  covariates = candidate_covariates,
+
+  coords = c(
+    "x_m",
+    "y_m"
+  ),
+
+  hierarchical_effects = effects,
+
+  spatial = TRUE,
+  mesh = mesh,
+
+  prior_range = prior_range,
+  prior_sigma = prior_sigma,
+
+  config = TRUE
+)
+```
+
+# Automatic likelihood selection
+
+For PPB:
+
+```r
+ppb_auto <- bottom_up(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "auto",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  mesh = mesh,
+  prior_range = prior_range,
+  prior_sigma = prior_sigma,
+  config = TRUE
+)
+
+ppb_auto$selection$scores
+ppb_auto$likelihood
+```
+
+For counts:
+
+```r
+count_auto <- bottom_up(
+  data = ea,
+  response = "population_count",
+  buildings = "buildings",
+  response_type = "count",
+  likelihood = "auto",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  mesh = mesh,
+  prior_range = prior_range,
+  prior_sigma = prior_sigma,
+  config = TRUE
+)
+
+count_auto$selection$scores
+count_auto$likelihood
+```
+
+The current package implementation compares compatible candidate likelihoods
+using mean log conditional predictive ordinate. This is a package default and
+can be replaced by a different decision rule in a custom workflow.
+
+# Observation-level posterior predictions
+
+Generate posterior results at the observed locations:
+
+```r
+gamma_obs <- observation_predictions(
+  gamma_fit,
+  draws = 500,
+  seed = 101
+)
+
+head(gamma_obs)
+```
+
+The returned table contains:
+
+- observed population;
+- posterior fitted mean;
+- posterior fitted median;
+- lower and upper 95% interval limits;
+- residual;
+- 95% interval coverage indicator.
+
+For the Negative Binomial model:
+
+```r
+nb_obs <- observation_predictions(
+  nb_fit,
+  draws = 500,
+  seed = 102
+)
+
+head(nb_obs)
+```
+
+# Observed versus fitted plots
+
+```r
+plot_observed_fitted(
+  gamma_fit,
+  draws = 500
+)
+```
+
+A log-scale display is available:
+
+```r
+plot_observed_fitted(
+  gamma_fit,
+  draws = 500,
+  log_scale = TRUE
+)
+```
+
+# Residual diagnostics
+
+```r
+plot_bottom_up_residuals(
+  gamma_fit,
+  draws = 500
+)
+```
+
+The diagnostic panel includes:
+
+- residuals versus fitted population;
+- residual histogram;
+- residual Q-Q plot;
+- residuals versus observed population.
+
+# Posterior fixed effects
+
+```r
+plot_posterior_fixed(
+  gamma_fit
+)
+```
+
+Include the intercept if desired:
+
+```r
+plot_posterior_fixed(
+  gamma_fit,
+  include_intercept = TRUE
+)
+```
+
+# Posterior hyperparameters
+
+```r
+plot_posterior_hyperparameters(
+  gamma_fit
+)
+```
+
+# Posterior hierarchical effects
+
+Survey-source effect:
+
+```r
+plot_hierarchical_effects(
+  gamma_fit,
+  effect = "source"
+)
+```
+
+Settlement:
+
+```r
+plot_hierarchical_effects(
+  gamma_fit,
+  effect = "settlement"
+)
+```
+
+Region-by-settlement:
+
+```r
+plot_hierarchical_effects(
+  gamma_fit,
+  effect = "region_settlement"
+)
+```
+
+# Posterior spatial field
+
+```r
+plot_spatial_field(
+  gamma_fit
+)
+```
+
+# Training-only covariate selection
+
+The package provides a generic INLA selector for use inside training folds:
+
+```r
+selected <- bottom_up_inla_selector(
+  train_data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  candidate_covariates = candidate_covariates,
+  response_type = "ppb",
+  likelihood = "gamma",
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  spatial = TRUE,
+  fallback = 3,
+  mesh = mesh,
+  prior_range = prior_range,
+  prior_sigma = prior_sigma
+)
+
+selected
+```
+
+The built-in selector is intentionally modular. A different selector function
+can be supplied to `bottom_up_cv()`.
+
+# Cross-validation
+
+`bottom_up_cv()` supports four validation designs:
+
+- random k-fold;
+- spatial-block;
+- leave-one-region-out style grouped validation;
+- leave-one-source-out style grouped validation.
+
+When a selector is supplied, covariate selection is repeated inside each
+training fold. Covariate standardisation is also estimated from the training
+data only.
+
+Define selector arguments:
+
+```r
+selector_args <- list(
+  fallback = 3,
+  prior_range = prior_range,
+  prior_sigma = prior_sigma
+)
+```
+
+# Random five-fold CV
+
+```r
+gamma_random <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+
+  response_type = "ppb",
+  likelihood = "gamma",
+
+  covariates = candidate_covariates,
+
+  coords = c(
+    "x_m",
+    "y_m"
+  ),
+
+  hierarchical_effects = effects,
+
+  method = "random",
+  folds = 5,
+
+  covariate_selector =
+    bottom_up_inla_selector,
+
+  selector_args =
+    selector_args,
+
+  standardize = TRUE,
+  prediction_draws = 200,
+
+  mesh = mesh,
+
+  prior_range = prior_range,
+  prior_sigma = prior_sigma,
+
+  seed = 201
+)
+```
+
+Overall metrics:
+
+```r
+gamma_random$metrics
+```
+
+Fold metrics:
+
+```r
+gamma_random$metrics_by_fold
+```
+
+Fold-specific selected variables:
+
+```r
+gamma_random$selected_covariates
+```
+
+# 100-km spatial-block CV
+
+```r
+gamma_cv100 <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+
+  response_type = "ppb",
+  likelihood = "gamma",
+
+  covariates = candidate_covariates,
+
+  coords = c(
+    "x_m",
+    "y_m"
+  ),
+
+  hierarchical_effects = effects,
+
+  method = "spatial_block",
+  folds = 5,
+
+  block_size = 100000,
+
+  covariate_selector =
+    bottom_up_inla_selector,
+
+  selector_args =
+    selector_args,
+
+  standardize = TRUE,
+  prediction_draws = 200,
+
+  mesh = mesh,
+
+  prior_range = prior_range,
+  prior_sigma = prior_sigma,
+
+  seed = 202
+)
+```
+
+Inspect:
+
+```r
+gamma_cv100$metrics
+gamma_cv100$metrics_by_fold
+gamma_cv100$selected_covariates
+```
+
+# 50-km and 150-km sensitivity analyses
+
+```r
+gamma_cv50 <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "spatial_block",
+  folds = 5,
+  block_size = 50000,
+  covariate_selector = bottom_up_inla_selector,
+  selector_args = selector_args,
+  mesh = mesh,
+  prediction_draws = 200
+)
+
+gamma_cv150 <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "spatial_block",
+  folds = 5,
+  block_size = 150000,
+  covariate_selector = bottom_up_inla_selector,
+  selector_args = selector_args,
+  mesh = mesh,
+  prediction_draws = 200
+)
+```
+
+# LORO
+
+Grouped leave-one-region-out style validation:
+
+```r
+gamma_loro <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "loro",
+  group = "region",
+  covariate_selector = bottom_up_inla_selector,
+  selector_args = selector_args,
+  mesh = mesh,
+  prediction_draws = 200
+)
+```
+
+# LOSO
+
+Grouped leave-one-source-out style validation:
+
+```r
+gamma_loso <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "loso",
+  group = "source",
+  covariate_selector = bottom_up_inla_selector,
+  selector_args = selector_args,
+  mesh = mesh,
+  prediction_draws = 200
+)
+```
+
+# Negative Binomial spatial CV
+
+The same validation framework works for count models:
+
+```r
+nb_cv100 <- bottom_up_cv(
+  data = ea,
+  response = "population_count",
+  buildings = "buildings",
+  response_type = "count",
+  likelihood = "negative binomial",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "spatial_block",
+  folds = 5,
+  block_size = 100000,
+  covariate_selector = bottom_up_inla_selector,
+  selector_args = selector_args,
+  mesh = mesh,
+  prediction_draws = 200,
+  seed = 203
+)
+```
+
+# Cross-validation plots
+
+Observed versus held-out predictions:
+
+```r
+plot_observed_fitted(
+  gamma_cv100
+)
+```
+
+Full CV diagnostics:
+
+```r
+plot_cv_diagnostics(
+  gamma_cv100
+)
+```
+
+# Residual Moran's I
+
+Evaluate residual spatial autocorrelation at selected distance thresholds:
+
+```r
+moran <- bottom_up_residual_moran(
+  gamma_cv100,
+  distances = c(
+    50000,
+    100000,
+    150000
+  )
+)
+
+moran
+```
+
+Plot:
+
+```r
+plot_residual_moran(
+  gamma_cv100,
+  distances = c(
+    50000,
+    100000,
+    150000
+  )
+)
+```
+
+# Validation summary table
+
+```r
+validation_summary <- rbind(
+  cbind(
+    model = "Gamma PPB",
+    design = "Random",
+    gamma_random$metrics
+  ),
+
+  cbind(
+    model = "Gamma PPB",
+    design = "Spatial 50 km",
+    gamma_cv50$metrics
+  ),
+
+  cbind(
+    model = "Gamma PPB",
+    design = "Spatial 100 km",
+    gamma_cv100$metrics
+  ),
+
+  cbind(
+    model = "Gamma PPB",
+    design = "Spatial 150 km",
+    gamma_cv150$metrics
+  ),
+
+  cbind(
+    model = "Gamma PPB",
+    design = "LORO",
+    gamma_loro$metrics
+  ),
+
+  cbind(
+    model = "Gamma PPB",
+    design = "LOSO",
+    gamma_loso$metrics
+  ),
+
+  cbind(
+    model = "NB COUNT",
+    design = "Spatial 100 km",
+    nb_cv100$metrics
+  )
+)
+
+validation_summary
+```
+
+# Fine-grid prediction
+
+Create a synthetic fine prediction grid:
+
+```r
+grid <- expand.grid(
+  x_m = seq(
+    5000,
+    295000,
+    length.out = 45
+  ),
+  y_m = seq(
+    5000,
+    295000,
+    length.out = 45
+  )
+)
+
+n_grid <- nrow(grid)
+
+set.seed(303)
+
+grid$roads <- rnorm(n_grid)
+grid$water <- rnorm(n_grid)
+grid$market <- rnorm(n_grid)
+grid$slope <- rnorm(n_grid)
+grid$night_lights <- rnorm(n_grid)
+
+grid$buildings <- rpois(
+  n_grid,
+  lambda =
+    exp(
+      2 +
+      0.15 * grid$roads -
+      0.08 * grid$slope
+    )
+)
+
+grid$settlement <- sample(
+  c(
+    "urban",
+    "periurban",
+    "rural"
+  ),
+  n_grid,
+  replace = TRUE
+)
+
+grid$region <- sample(
+  paste0(
+    "R",
+    1:5
+  ),
+  n_grid,
+  replace = TRUE
+)
+
+grid$region_settlement <- interaction(
+  grid$region,
+  grid$settlement,
+  drop = TRUE
+)
+
+grid$national <- "Syntheticland"
+```
+
+# Joint posterior prediction
+
+For the Gamma PPB model:
+
+```r
+gamma_grid <- predict_bottom_up(
+  gamma_fit,
+
+  newdata = grid,
+
+  population = TRUE,
+
+  draws = 500,
+
+  chunkwise = TRUE,
+  chunk_size = 500,
+
+  return_draws = FALSE,
+
+  aggregate_by = c(
+    "national",
+    "region"
+  ),
+
+  omit_effects =
+    "source",
+
+  marginalize_effects =
+    "ea_id",
+
+  seed = 401
+)
+```
+
+Cell summaries:
+
+```r
+head(
+  gamma_grid$summary
+)
+```
+
+# Chunk-wise posterior prediction
+
+For large national grids, use:
+
+```r
+pred_large <- predict_bottom_up(
+  gamma_fit,
+  newdata = grid,
+  population = TRUE,
+  draws = 1000,
+  chunkwise = TRUE,
+  chunk_size = 50000
+)
+```
+
+The same posterior sample identities are preserved across chunks.
+
+For smaller data sets, chunking can be disabled:
+
+```r
+pred_small <- predict_bottom_up(
+  gamma_fit,
+  newdata = grid,
+  population = TRUE,
+  draws = 500,
+  chunkwise = FALSE
+)
+```
+
+With the same seed and posterior sample settings, chunk-wise and single-block
+prediction target the same posterior quantities. Chunking primarily controls
+memory use.
+
+# Structural zeros
+
+Cells with no mapped building exposure are treated as structural zeros.
+
+Check:
+
+```r
+zero_cells <- which(
+  grid$buildings == 0
+)
+
+if (length(zero_cells)) {
+
+  stopifnot(
+    all(
+      gamma_grid$summary$mean[
+        zero_cells
+      ] == 0
+    )
+  )
+
+}
+```
+
+# Negative Binomial fine-grid prediction
+
+```r
+nb_grid <- predict_bottom_up(
+  nb_fit,
+
+  newdata = grid,
+
+  population = TRUE,
+
+  draws = 500,
+
+  chunkwise = TRUE,
+  chunk_size = 500,
+
+  aggregate_by = c(
+    "national",
+    "region"
+  ),
+
+  omit_effects =
+    "source",
+
+  marginalize_effects =
+    "ea_id",
+
+  seed = 402
+)
+```
+
+Because the count model already incorporates `log(buildings)`, its predicted
+population is not multiplied by buildings again.
+
+# Omission and marginalisation of hierarchical effects
+
+Fine-grid population prediction may not correspond to a particular survey
+source or observed EA.
+
+Effects can therefore be handled differently at prediction time.
+
+To set an effect contribution to zero:
+
+```r
+omit_effects = "source"
+```
+
+To integrate an IID Gaussian effect over its posterior variance on the response
+mean scale:
+
+```r
+marginalize_effects = "ea_id"
+```
+
+Combined:
+
+```r
+pred <- predict_bottom_up(
+  gamma_fit,
+  newdata = grid,
+  omit_effects = "source",
+  marginalize_effects = "ea_id"
+)
+```
+
+Current response-scale marginalisation is implemented for IID Gaussian
+hierarchical effects under the log link.
+
+# Administrative aggregation
+
+Because all grid chunks use the same posterior draw identities, population can
+be summed draw-wise before uncertainty summaries are computed.
+
+National result:
+
+```r
+gamma_grid$aggregates$national
+```
+
+Regional results:
+
+```r
+gamma_grid$aggregates$region
+```
+
+Raw national posterior totals:
+
+```r
+gamma_grid$aggregate_draws$national
+```
+
+Raw regional posterior totals:
+
+```r
+gamma_grid$aggregate_draws$region
+```
+
+This is preferable to adding marginal lower and upper interval endpoints across
+cells.
+
+# Manual aggregation
+
+If cell-level posterior draws have been retained:
+
+```r
+pred_with_draws <- predict_bottom_up(
+  gamma_fit,
+  newdata = grid,
+  population = TRUE,
+  draws = 200,
+  return_draws = TRUE,
+  chunkwise = TRUE,
+  chunk_size = 500
+)
+```
+
+Aggregate manually:
+
+```r
+regional <- aggregate_bottom_up(
+  draws = pred_with_draws$draws,
+  group = grid$region
+)
+
+regional
+```
+
+# Saving outputs
+
+Observation-level results:
+
+```r
+write.csv(
+  gamma_obs,
+  "gamma_observation_predictions.csv",
+  row.names = FALSE
+)
+```
+
+Fine-grid summaries:
+
+```r
+gamma_cells <- cbind(
+  grid[
+    c(
+      "x_m",
+      "y_m",
+      "buildings",
+      "region",
+      "settlement"
+    )
+  ],
+  gamma_grid$summary
+)
+
+saveRDS(
+  gamma_cells,
+  "gamma_fine_grid_population.rds"
+)
+```
+
+Administrative summaries:
+
+```r
+write.csv(
+  gamma_grid$aggregates$national,
+  "gamma_national_population.csv",
+  row.names = FALSE
+)
+
+write.csv(
+  gamma_grid$aggregates$region,
+  "gamma_region_population.csv",
+  row.names = FALSE
+)
+```
+
+Save fitted models:
+
+```r
+saveRDS(
+  gamma_fit,
+  "gamma_fit.rds"
+)
+
+saveRDS(
+  nb_fit,
+  "nb_fit.rds"
+)
+```
+
+# Recommended analysis sequence
+
+For a new application, a practical sequence is:
+
+1. check response and building-exposure semantics;
+2. project coordinates into an appropriate distance-preserving CRS;
+3. inspect building counts and response distributions;
+4. define candidate covariates;
+5. define any optional hierarchical effects;
+6. inspect data-adaptive mesh parameters;
+7. build the mesh;
+8. define spatial priors in the same distance units;
+9. create CV folds;
+10. perform training-only scaling and covariate selection within each fold;
+11. evaluate random CV;
+12. evaluate primary spatial-block CV;
+13. run spatial-scale sensitivity analyses;
+14. perform grouped holdout analyses such as LORO/LOSO when scientifically relevant;
+15. inspect calibration and residual spatial autocorrelation;
+16. run final full-data covariate selection;
+17. fit the final model with `config = TRUE`;
+18. inspect observation-level posterior results;
+19. prepare the fine-resolution prediction grid;
+20. predict with joint posterior sampling;
+21. use chunk-wise prediction for large grids;
+22. explicitly decide which hierarchical effects are retained, omitted, or marginalised;
+23. enforce structural zero population where building exposure is absent;
+24. aggregate population draw-by-draw;
+25. save cell-level and administrative posterior summaries.
+
+# Complete runnable script
+
+A complete synthetic workflow is included with the package:
+
+```r
+tutorial_file <- system.file(
+  "examples",
+  "synthetic_tutorial.R",
+  package = "bottom.UpR"
+)
+
+source(
+  tutorial_file
+)
+```
+
+The source file is located at:
+
+`inst/examples/synthetic_tutorial.R`
+
+# Citation
+
+If you use `bottom-UpR`, cite:
+
+> Nnanatu, Chibuzor Christopher & Tatem, Andrew J. (2026).
+> *bottom-UpR: Bayesian Bottom-Up Population Modelling with INLA-SPDE*.
+> R package version 0.2.0.
+> https://github.com/GeoRMaP/bottom-UpR
+
+The current citation can also be obtained directly from R:
+
+```r
+citation(
+  "bottom.UpR"
+)
+```
+
+# Reproducibility notes
+
+The synthetic data in this tutorial are generated only for software
+demonstration. They should not be interpreted as representing the spatial,
+demographic, or survey characteristics of a real country.
+
+For real applications:
+
+- use projected coordinates with known units;
+- ensure population and building variables are defined consistently;
+- avoid applying building exposure twice;
+- define validation folds before model selection;
+- perform scaling and variable selection inside training folds;
+- preserve posterior draw identities across prediction chunks;
+- aggregate uncertainty draw-wise;
+- document prediction-time treatment of hierarchical effects;
+- retain reproducible seeds, package versions, and model specifications.
+
