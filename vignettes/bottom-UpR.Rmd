@@ -1,0 +1,28 @@
+---
+title: "Getting started with bottom-UpR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with bottom-UpR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+`bottom-UpR` separates the *response support* from the *likelihood*. COUNT
+responses are candidates for Poisson and negative binomial models. PPB
+responses are candidates for Gamma and lognormal models.
+
+```{r, eval=FALSE}
+fit <- bottom_up(
+  data = ea,
+  response = "population",
+  buildings = "buildings",
+  covariates = c("x1","x2"),
+  coords = c("x","y")
+)
+print(fit)
+```
+
+For count responses, mapped buildings enter as a log exposure. For PPB
+responses, building exposure is not part of the likelihood; population is
+obtained from PPB multiplied by mapped buildings. Exposure is therefore used
+exactly once.
