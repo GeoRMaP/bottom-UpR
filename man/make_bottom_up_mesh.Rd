@@ -4,7 +4,7 @@
 \usage{
 make_bottom_up_mesh(data, coords = c("x", "y"), adaptive = FALSE,
   max_edge = NULL, offset = NULL, cutoff = NULL,
-  adaptive_args = list())
+  adaptive_args = list(), verbose = TRUE)
 }
 \arguments{
 \item{data}{Data frame containing projected coordinates.}
@@ -14,6 +14,7 @@ make_bottom_up_mesh(data, coords = c("x", "y"), adaptive = FALSE,
 \item{offset}{Inner and outer mesh extensions; \code{NULL} permits automatic derivation in adaptive mode.}
 \item{cutoff}{Minimum point separation; \code{NULL} permits automatic derivation in adaptive mode.}
 \item{adaptive_args}{Named list passed to \code{bottom_up_mesh_parameters}.}
+\item{verbose}{Logical; print mesh-construction progress and warnings.}
 }
 \value{An INLA mesh with the parameters used stored in an attribute.}
 \description{Builds a two-dimensional SPDE mesh using explicit distances or study-area-adaptive distances derived from the geographic footprint of the supplied projected locations.}
