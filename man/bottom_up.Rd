@@ -5,7 +5,7 @@
 bottom_up(data, response, buildings = NULL,
   response_type = c("auto", "count", "ppb"), likelihood = "auto",
   covariates = NULL, coords = c("x", "y"), random_effects = NULL,
-  hierarchical_effects = NULL, spatial = TRUE, ...)
+  hierarchical_effects = NULL, spatial = TRUE, verbose = TRUE, ...)
 }
 \arguments{
 \item{data}{Modelling data frame.}
@@ -18,6 +18,7 @@ bottom_up(data, response, buildings = NULL,
 \item{random_effects}{Backward-compatible IID grouping-column shorthand.}
 \item{hierarchical_effects}{Optional adaptable hierarchical-effect specification.}
 \item{spatial}{Logical; include an SPDE spatial field.}
+\item{verbose}{Logical; print progress messages and validation information.}
 \item{...}{Additional arguments passed to \code{fit_bottom_up}.}
 }
 \value{A \code{bottom_up_fit} object.}
