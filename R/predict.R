@@ -350,7 +350,9 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
   )
 
   aggregates <- NULL
+  aggregate_draws <- NULL
   if (!is.null(acc)) {
+    aggregate_draws <- lapply(acc,function(z) z$draws)
     aggregates <- lapply(acc,function(z) {
       ans <- .summarise_draw_matrix(z$draws)
       cbind(group=rownames(z$draws),ans,row.names=NULL)
@@ -362,6 +364,7 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
       summary=summ,
       draws=keep_draws,
       aggregates=aggregates,
+      aggregate_draws=aggregate_draws,
       n_draws=draws,
       population=population,
       response_type=object$spec$response_type,
