@@ -64,3 +64,20 @@ test_that("adaptive mesh parameters scale with spatial footprint", {
   expect_equal(p2$offset / p1$offset, c(10, 10))
   expect_equal(p2$cutoff / p1$cutoff, 10)
 })
+
+
+test_that("bundled Shiny demo directories are installed", {
+  grid_app <- system.file(
+    "shiny", "grid-results", "app.R",
+    package = "bottom.UpR"
+  )
+  compare_app <- system.file(
+    "shiny", "model-comparison", "app.R",
+    package = "bottom.UpR"
+  )
+
+  expect_true(nzchar(grid_app))
+  expect_true(nzchar(compare_app))
+  expect_true(file.exists(grid_app))
+  expect_true(file.exists(compare_app))
+})
