@@ -623,7 +623,8 @@ if(RUN_GRID_PREDICTION && file.exists(GRID_FILE)) {
     chunk_size=GRID_CHUNK_SIZE,
     return_draws=FALSE,
     aggregate_by=aggregate_cols,
-    omit_effects=c(COL_SOURCE,COL_EA_ID),
+    omit_effects=COL_SOURCE,
+    marginalize_effects=COL_EA_ID,
     seed=1001
   )
 
@@ -635,7 +636,8 @@ if(RUN_GRID_PREDICTION && file.exists(GRID_FILE)) {
     chunk_size=GRID_CHUNK_SIZE,
     return_draws=FALSE,
     aggregate_by=aggregate_cols,
-    omit_effects=c(COL_SOURCE,COL_EA_ID),
+    omit_effects=COL_SOURCE,
+    marginalize_effects=COL_EA_ID,
     seed=1001
   )
 
