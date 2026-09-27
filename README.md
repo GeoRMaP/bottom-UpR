@@ -299,3 +299,31 @@ From R, the package citation can be retrieved with:
 ```r
 citation("bottom.UpR")
 ```
+
+
+## Full tutorial
+
+A comprehensive package tutorial is included at:
+
+`vignettes/full-tutorial.Rmd`
+
+It covers installation, PPB and COUNT response semantics, synthetic-data
+generation, exploratory analysis, optional hierarchical effects, adaptive
+SPDE meshes, all supported likelihoods, automatic likelihood selection,
+observation-level posterior prediction, diagnostics, training-only covariate
+selection, random/spatial/LORO/LOSO validation, residual Moran diagnostics,
+fine-grid joint posterior prediction, optional chunk-wise prediction,
+hierarchical-effect omission/marginalisation, structural zeros, and draw-wise
+administrative aggregation.
+
+After installation, list package vignettes with:
+
+```r
+vignette(package = "bottom.UpR")
+```
+
+and open the full tutorial with:
+
+```r
+vignette("full-tutorial", package = "bottom.UpR")
+```
