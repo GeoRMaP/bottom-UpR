@@ -383,3 +383,44 @@ and
 
 They can be used as templates for project-specific Shiny applications that read
 the outputs returned by `predict_bottom_up()`.
+
+
+## Progress reports and warnings
+
+Major modelling functions now report their current stage by default. Progress
+messages are prefixed with `[bottom-UpR]`, for example:
+
+```text
+[bottom-UpR] Creating model specification
+[bottom-UpR] Building SPDE mesh
+[bottom-UpR] Running INLA: spatial model
+[bottom-UpR] Model fit complete: likelihood=gamma
+[bottom-UpR] Sampling joint posterior: draws=500
+[bottom-UpR] Predicting chunk: 1/10 (rows 1-50000)
+[bottom-UpR] Cross-validation fold: 3/5 [3]
+```
+
+Warnings use the same package prefix and flag conditions that should be checked,
+including apparent longitude/latitude coordinates in distance-based models,
+missing values, sparse hierarchical levels, CPO failures, unusual mesh
+settings, large posterior-draw allocations, non-finite prediction inputs,
+small validation folds, selector fallbacks, and structural-zero/exposure
+issues.
+
+Progress can be silenced without suppressing warnings:
+
+```r
+fit <- bottom_up(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  verbose = FALSE
+)
+```
+
+The `verbose` argument is available on the major workflow functions, including
+model specification/fitting, mesh construction, simulation, covariate
+selection, cross-validation, posterior prediction, observation-level
+prediction, aggregation, and Shiny demo launching.
