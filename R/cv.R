@@ -102,7 +102,6 @@ bottom_up_inla_selector <- function(train_data,response,buildings=NULL,
     .bottom_up_warn("No candidate covariates supplied; selector returns an empty set.")
     return(character())
   }
-  alpha <- (1-level)/2
   if(level <= 0 || level >= 1)
     stop("level must lie strictly between 0 and 1.",call.=FALSE)
 
@@ -226,7 +225,8 @@ bottom_up_cv <- function(data,response,buildings=NULL,
     data=data,response=response,buildings=buildings,
     response_type=response_type,likelihood=likelihood,
     covariates=covariates,coords=coords,
-    hierarchical_effects=effects,spatial=TRUE
+    hierarchical_effects=effects,spatial=TRUE,
+    verbose=verbose
   )
   rt <- spec0$response_type
 
@@ -425,16 +425,24 @@ print.bottom_up_cv <- function(x,...) {
 #'
 #' @param object A `bottom_up_cv` object.
 #' @param distances Distance thresholds in coordinate units.
+#' @param verbose Logical; print progress messages and warnings.
 #' @return Data frame of Moran's I statistics.
 #' @export
 bottom_up_residual_moran <- function(object,
-                                     distances=c(50000,100000,150000)) {
+                                     distances=c(50000,100000,150000),
+                                     verbose=TRUE) {
   if(!inherits(object,"bottom_up_cv"))
     stop("object must be bottom_up_cv.",call.=FALSE)
+  .bottom_up_progress(verbose,"Computing residual Moran's I",
+                      paste0("distance bands=",paste(distances,collapse=", ")))
+  if(any(!is.finite(distances)) || any(distances <= 0))
+    stop("distances must contain positive finite thresholds.",call.=FALSE)
 
   d <- object$predictions
   ok <- is.finite(d$coord_x) & is.finite(d$coord_y) &
         is.finite(d$observed) & is.finite(d$predicted)
+  if(any(!ok))
+    .bottom_up_warn("Non-finite held-out records are excluded from Moran's I calculation.")
   d <- d[ok,,drop=FALSE]
   if(nrow(d) < 3L) stop("Too few valid held-out predictions.",call.=FALSE)
 
@@ -451,7 +459,12 @@ bottom_up_residual_moran <- function(object,
       nrow(d)/s0 * sum(w * tcrossprod(z))/denom else NA_real_
     data.frame(distance=th,moran_I=I,n=nrow(d),links=s0)
   })
-  do.call(rbind,out)
+  ans <- do.call(rbind,out)
+  if(any(ans$links == 0))
+    .bottom_up_warn("One or more Moran distance bands contain no neighbour links.")
+  .bottom_up_progress(verbose,"Residual Moran's I complete",
+                      paste0("n=",nrow(d)))
+  ans
 }
 
 #' Plot residual Moran's I across distance bands
