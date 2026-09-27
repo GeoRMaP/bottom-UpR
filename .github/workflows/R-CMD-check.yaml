@@ -38,7 +38,7 @@ jobs:
       - name: Install check dependencies
         shell: Rscript {0}
         run: |
-          install.packages(c("rcmdcheck", "testthat", "knitr", "rmarkdown", "roxygen2"))
+          install.packages(c("rcmdcheck", "testthat", "knitr", "rmarkdown", "roxygen2", "shiny", "leaflet"))
 
       - name: Generate documentation
         shell: Rscript {0}
