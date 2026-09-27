@@ -464,14 +464,22 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
 #'
 #' @param draws Cell-by-draw numeric matrix.
 #' @param group Group identifier for each cell.
+#' @param verbose Logical; print progress messages and warnings.
 #' @return Administrative posterior summaries.
 #' @export
-aggregate_bottom_up <- function(draws,group) {
+aggregate_bottom_up <- function(draws,group,verbose=TRUE) {
+  .bottom_up_progress(verbose,"Aggregating posterior draws")
   if(!is.matrix(draws)) draws <- as.matrix(draws)
   if(nrow(draws)!=length(group))
     stop("group must have one value per cell.",call.=FALSE)
 
+  if(anyNA(group))
+    .bottom_up_warn("Missing group labels are excluded from posterior aggregation.")
+  if(any(!is.finite(draws)))
+    .bottom_up_warn("Non-finite posterior draw values detected; aggregate summaries may be non-finite.")
   lev <- unique(group[!is.na(group)])
+  if(!length(lev))
+    stop("No non-missing aggregation groups were supplied.",call.=FALSE)
   ans <- lapply(lev,function(g) {
     z <- colSums(draws[group==g,,drop=FALSE])
     data.frame(
@@ -484,5 +492,8 @@ aggregate_bottom_up <- function(draws,group) {
       cv=stats::sd(z)/pmax(mean(z),.Machine$double.eps)
     )
   })
-  do.call(rbind,ans)
+  out <- do.call(rbind,ans)
+  .bottom_up_progress(verbose,"Posterior aggregation complete",
+                      paste0("groups=",nrow(out),", draws=",ncol(draws)))
+  out
 }
