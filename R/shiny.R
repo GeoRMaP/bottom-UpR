@@ -6,12 +6,15 @@
 #'
 #' @param app Which demo to launch: code{"grid"} or code{"compare"}.
 #' @param launch.browser Passed to code{shiny::runApp()}.
+#' @param verbose Logical; print launch progress.
 #' @param ... Additional arguments passed to code{shiny::runApp()}.
 #' @return Invisibly returns the value from code{shiny::runApp()}.
 #' @export
 run_bottom_up_shiny <- function(app=c("grid","compare"),
-                                launch.browser=interactive(),...) {
+                                launch.browser=interactive(),
+                                verbose=TRUE,...) {
   app <- match.arg(app)
+  .bottom_up_progress(verbose,"Launching Shiny demo",paste0("app=",app))
   if(!requireNamespace("shiny",quietly=TRUE))
     stop("Package 'shiny' is required. Install it with install.packages('shiny').",
          call.=FALSE)
