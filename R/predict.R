@@ -57,12 +57,18 @@
   1/p
 }
 
-.prepare_newdata_effects <- function(object,newdata) {
+.effect_omitted <- function(e,omit_effects=NULL) {
+  identical(e$prediction,"zero") ||
+    (!is.null(omit_effects) &&
+       any(c(e$column,e$label,e$internal) %in% omit_effects))
+}
+
+.prepare_newdata_effects <- function(object,newdata,omit_effects=NULL) {
   if (!length(object$spec$hierarchical_effects)) return(newdata)
 
   for (i in seq_along(object$spec$hierarchical_effects)) {
     e <- object$spec$hierarchical_effects[[i]]
-    if (identical(e$prediction,"zero")) {
+    if (.effect_omitted(e,omit_effects)) {
       newdata[[e$internal]] <- NA_integer_
       next
     }
@@ -146,6 +152,10 @@
 #'   may require substantial memory.
 #' @param aggregate_by Optional character vector of grouping columns in
 #'   `newdata`. Administrative totals are accumulated draw-wise.
+#' @param omit_effects Optional character vector of hierarchical effect columns,
+#'   labels, or internal names to omit for this prediction target. This is useful
+#'   for national grids where survey-source or EA-specific effects should not be
+#'   assigned.
 #' @param seed Random seed for posterior sampling.
 #' @return If `newdata=NULL`, a data frame. Otherwise a
 #'   `bottom_up_prediction` object with `summary`, optional `draws`, and
@@ -155,6 +165,7 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
                               draws=500,chunk_size=50000,
                               return_draws=FALSE,
                               aggregate_by=NULL,
+                              omit_effects=NULL,
                               seed=123) {
   if(!inherits(object,"bottom_up_fit"))
     stop("object must be bottom_up_fit.",call.=FALSE)
@@ -192,7 +203,7 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
     if(object$spec$spatial) object$spec$coords else NULL,
     if(!is.null(object$spec$buildings)) object$spec$buildings else NULL,
     if(length(object$spec$hierarchical_effects)) {
-      eff_keep <- Filter(function(e) !identical(e$prediction,"zero"),
+      eff_keep <- Filter(function(e) !.effect_omitted(e,omit_effects),
                          object$spec$hierarchical_effects)
       if(length(eff_keep)) vapply(eff_keep,`[[`,character(1),"column") else NULL
     } else NULL,
@@ -201,7 +212,7 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
   .validate_columns(newdata,needed)
 
   newdata <- .apply_fit_scaling(object,newdata)
-  newdata <- .prepare_newdata_effects(object,newdata)
+  newdata <- .prepare_newdata_effects(object,newdata,omit_effects)
 
   n <- nrow(newdata)
   if (!n) stop("newdata has zero rows.",call.=FALSE)
@@ -267,7 +278,7 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
       if (length(object$spec$hierarchical_effects)) {
         for (i in seq_along(object$spec$hierarchical_effects)) {
           e <- object$spec$hierarchical_effects[[i]]
-          if (identical(e$prediction,"zero")) next
+          if (.effect_omitted(e,omit_effects)) next
           id <- nd[[e$internal]]
           field <- .sample_field(
             smp,
