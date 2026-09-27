@@ -78,12 +78,19 @@ All effects are optional. A simpler model can use
 # 4. Build the SPDE mesh
 
 ```r
+mesh_par <- bottom_up_mesh_parameters(
+  ea,
+  coords = c("x_m", "y_m")
+)
+
+mesh_par$max_edge
+mesh_par$offset
+mesh_par$cutoff
+
 mesh <- make_bottom_up_mesh(
   ea,
   coords = c("x_m", "y_m"),
-  max_edge = c(40000, 80000),
-  offset = c(40000, 80000),
-  cutoff = 10000
+  adaptive = TRUE
 )
 ```
 
@@ -324,6 +331,7 @@ gamma_grid <- predict_bottom_up(
   newdata = grid,
   population = TRUE,
   draws = 250,
+  chunkwise = TRUE,
   chunk_size = 500,
   return_draws = FALSE,
   aggregate_by = c("national", "region"),
@@ -348,6 +356,7 @@ nb_grid <- predict_bottom_up(
   newdata = grid,
   population = TRUE,
   draws = 250,
+  chunkwise = TRUE,
   chunk_size = 500,
   aggregate_by = c("national", "region"),
   omit_effects = "source",
