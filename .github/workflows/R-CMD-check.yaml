@@ -34,7 +34,12 @@ jobs:
       - name: Install check dependencies
         shell: Rscript {0}
         run: |
-          install.packages(c("rcmdcheck", "testthat", "knitr", "rmarkdown"))
+          install.packages(c("rcmdcheck", "testthat", "knitr", "rmarkdown", "roxygen2"))
+
+      - name: Generate documentation
+        shell: Rscript {0}
+        run: |
+          roxygen2::roxygenise()
 
       - name: R CMD check
         shell: Rscript {0}
