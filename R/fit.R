@@ -23,13 +23,15 @@
 }
 
 .make_formula <- function(spec, spatial=spec$spatial) {
-  rhs <- c("1",spec$covariates)
+  rhs <- if(spatial) c(".bottom_intercept",spec$covariates) else
+    c("1",spec$covariates)
   if(spec$response_type=="count" && !is.null(spec$buildings))
     rhs <- c(rhs,"offset(.bottom_log_exposure)")
   rhs <- c(rhs,.effect_formula_terms(spec$hierarchical_effects))
   if(spatial) rhs <- c(rhs,"f(.bottom_spatial, model=.bottom_spde)")
+  lhs <- if(spatial) ".bottom_y ~ 0 +" else ".bottom_y ~"
   stats::as.formula(
-    paste(".bottom_y ~",paste(rhs,collapse=" + ")),
+    paste(lhs,paste(rhs,collapse=" + ")),
     env=parent.frame()
   )
 }
@@ -65,8 +67,17 @@
 
     idx <- INLA::inla.spde.make.index(".bottom_spatial",mesh$n)
 
-    fixed <- d
-    fixed$.bottom_spatial <- NULL
+    effect_cols <- if(length(spec$hierarchical_effects))
+      vapply(spec$hierarchical_effects,`[[`,character(1),"internal") else character()
+    fixed_cols <- unique(c(
+      spec$covariates,
+      if(spec$response_type=="count" && !is.null(spec$buildings))
+        ".bottom_log_exposure" else NULL,
+      effect_cols
+    ))
+    fixed <- if(length(fixed_cols))
+      d[,fixed_cols,drop=FALSE] else data.frame(row.names=seq_len(nrow(d)))
+    fixed$.bottom_intercept <- 1
 
     stk <- INLA::inla.stack(
       data=list(.bottom_y=d$.bottom_y),
