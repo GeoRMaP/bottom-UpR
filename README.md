@@ -286,3 +286,16 @@ pred_all_at_once <- predict_bottom_up(
 
 Both modes use one synchronized set of joint posterior draws; chunking changes
 memory use, not posterior draw identity.
+
+
+## Citation
+
+If you use **bottom-UpR** in research, please cite:
+
+> Nnanatu, Chibuzor Christopher (2026). *bottom-UpR: Bayesian Bottom-Up Population Modelling with INLA-SPDE*. R package version 0.2.0. GeoRMaP. https://github.com/GeoRMaP/bottom-UpR
+
+From R, the package citation can be retrieved with:
+
+```r
+citation("bottom.UpR")
+```
