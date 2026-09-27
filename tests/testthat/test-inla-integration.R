@@ -101,3 +101,55 @@ test_that("spatial count fit can project joint posterior samples", {
   expect_equal(nrow(pr$summary), n)
   expect_true(all(is.finite(pr$summary$mean)))
 })
+
+
+test_that("chunk-wise and single-block posterior prediction agree", {
+  skip_if_not_installed("INLA")
+  set.seed(31)
+
+  n <- 24L
+  d <- data.frame(
+    y = NA_integer_,
+    buildings = sample(5:15, n, replace = TRUE),
+    x1 = rnorm(n),
+    x = seq_len(n),
+    yy = seq_len(n)
+  )
+  d$y <- stats::rpois(
+    n,
+    d$buildings * exp(0.2 + 0.2 * d$x1)
+  )
+
+  fit <- bottom_up(
+    data = d,
+    response = "y",
+    buildings = "buildings",
+    response_type = "count",
+    likelihood = "poisson",
+    covariates = "x1",
+    coords = c("x", "yy"),
+    spatial = FALSE,
+    config = TRUE
+  )
+
+  a <- predict_bottom_up(
+    fit,
+    newdata = d,
+    draws = 8,
+    chunkwise = TRUE,
+    chunk_size = 5,
+    seed = 77
+  )
+
+  b <- predict_bottom_up(
+    fit,
+    newdata = d,
+    draws = 8,
+    chunkwise = FALSE,
+    seed = 77
+  )
+
+  expect_equal(a$summary, b$summary, tolerance = 1e-10)
+  expect_true(a$chunkwise)
+  expect_false(b$chunkwise)
+})
