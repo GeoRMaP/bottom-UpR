@@ -150,6 +150,7 @@ bottom_up_inla_selector <- function(train_data,response,buildings=NULL,
 #' @param covariate_selector Optional training-only selector function. It must
 #'   return a character vector of selected covariate names.
 #' @param standardize Standardise covariates using training-fold means/SDs.
+#' @param selector_args Named list passed only to `covariate_selector`.
 #' @param prediction_draws Joint posterior draws per fold.
 #' @param mesh Optional common mesh. If omitted, random/spatial CV constructs a
 #'   full-location mesh once; grouped holdouts also reuse that geometry by
@@ -170,6 +171,7 @@ bottom_up_cv <- function(data,response,buildings=NULL,
                          group=NULL,
                          covariate_selector=NULL,
                          standardize=TRUE,
+                         selector_args=list(),
                          prediction_draws=200L,
                          mesh=NULL,
                          mesh_args=list(),
@@ -181,6 +183,8 @@ bottom_up_cv <- function(data,response,buildings=NULL,
     hierarchical_effects=hierarchical_effects,
     random_effects=random_effects
   )
+
+  fit_dots <- list(...)
 
   spec0 <- bottom_up_spec(
     data=data,response=response,buildings=buildings,
@@ -230,34 +234,40 @@ bottom_up_cv <- function(data,response,buildings=NULL,
 
     selected <- covariates
     if(is.function(covariate_selector)) {
-      selected <- covariate_selector(
-        train_data=train,
-        response=response,
-        buildings=buildings,
-        candidate_covariates=covariates,
-        response_type=rt,
-        likelihood=likelihood,
-        coords=coords,
-        hierarchical_effects=effects,
-        ...
+      sel_call <- c(
+        list(
+          train_data=train,
+          response=response,
+          buildings=buildings,
+          candidate_covariates=covariates,
+          response_type=rt,
+          likelihood=likelihood,
+          coords=coords,
+          hierarchical_effects=effects
+        ),
+        selector_args
       )
+      selected <- do.call(covariate_selector,sel_call)
       selected <- intersect(as.character(selected),covariates)
     }
 
-    fit <- bottom_up(
-      data=train,
-      response=response,
-      buildings=buildings,
-      response_type=rt,
-      likelihood=likelihood,
-      covariates=selected,
-      coords=coords,
-      hierarchical_effects=effects,
-      spatial=TRUE,
-      mesh=mesh,
-      config=TRUE,
-      ...
+    fit_call <- c(
+      list(
+        data=train,
+        response=response,
+        buildings=buildings,
+        response_type=rt,
+        likelihood=likelihood,
+        covariates=selected,
+        coords=coords,
+        hierarchical_effects=effects,
+        spatial=TRUE,
+        mesh=mesh,
+        config=TRUE
+      ),
+      fit_dots
     )
+    fit <- do.call(bottom_up,fit_call)
     fit$scaling <- scaler
 
     pr <- predict_bottom_up(
