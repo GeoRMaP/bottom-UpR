@@ -342,7 +342,7 @@ plot_cv_diagnostics <- function(object) {
     xlab="Held-out residual",main="Residual distribution"
   )
 
-  cover <- aggregate(
+  cover <- stats::aggregate(
     d$observed>=d$lower & d$observed<=d$upper,
     list(fold=d$fold),
     mean,na.rm=TRUE
