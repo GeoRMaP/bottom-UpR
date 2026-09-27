@@ -229,3 +229,60 @@ selection, random and spatial-block CV, LORO/LOSO, observation-level posterior
 predictions, observed-versus-fitted and posterior diagnostics, residual Moran's
 I, fine-grid joint-posterior prediction, structural zeros, and draw-wise
 administrative aggregation.
+
+
+## Adaptive mesh parameters
+
+Mesh geometry can be scaled automatically to the spatial footprint of each data
+set rather than using the same absolute distances everywhere.
+
+```r
+mesh_par <- bottom_up_mesh_parameters(
+  ea,
+  coords = c("x_m", "y_m")
+)
+
+mesh_par$max_edge
+mesh_par$offset
+mesh_par$cutoff
+
+mesh <- make_bottom_up_mesh(
+  ea,
+  coords = c("x_m", "y_m"),
+  adaptive = TRUE
+)
+```
+
+The automatic distances are fractions of the study-area diagonal and remain in
+the same units as the projected coordinates. Explicit `max_edge`, `offset`,
+or `cutoff` values can still be supplied and override the corresponding
+automatic value.
+
+## Optional chunk-wise posterior prediction
+
+Large grids can be processed chunk-by-chunk:
+
+```r
+pred_chunked <- predict_bottom_up(
+  fit,
+  newdata = grid100m,
+  population = TRUE,
+  draws = 1000,
+  chunkwise = TRUE,
+  chunk_size = 50000
+)
+```
+
+For smaller data sets, chunking can be disabled:
+
+```r
+pred_all_at_once <- predict_bottom_up(
+  fit,
+  newdata = grid_small,
+  draws = 500,
+  chunkwise = FALSE
+)
+```
+
+Both modes use one synchronized set of joint posterior draws; chunking changes
+memory use, not posterior draw identity.
