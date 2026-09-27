@@ -23,6 +23,12 @@ detect_response_type <- function(y) {
 
 #' Create a bottom-UpR model specification
 #'
+#' Hierarchical effects are optional. Each effect can be supplied as a column
+#' name (shorthand for an IID effect) or as a list, for example
+#' `list(column="source", model="iid", prediction="zero")`. This makes the
+#' hierarchy adaptable to source, settlement, region-by-settlement, household,
+#' facility, interviewer, district, or other user-defined effects.
+#'
 #' @param data Data frame.
 #' @param response Response column name.
 #' @param buildings Optional mapped-building exposure column.
@@ -30,7 +36,9 @@ detect_response_type <- function(y) {
 #' @param likelihood `"auto"` or a supported likelihood.
 #' @param covariates Character vector of fixed-effect columns.
 #' @param coords Two coordinate column names for spatial models.
-#' @param random_effects Character vector of grouping columns.
+#' @param random_effects Backward-compatible character-vector shorthand for IID
+#'   hierarchical effects.
+#' @param hierarchical_effects Optional list of arbitrary hierarchical effects.
 #' @param spatial Include an SPDE spatial field?
 #' @return A `bottom_up_spec` object.
 #' @export
@@ -38,20 +46,30 @@ bottom_up_spec <- function(data, response, buildings=NULL,
                            response_type=c("auto","count","ppb"),
                            likelihood="auto", covariates=NULL,
                            coords=c("x","y"), random_effects=NULL,
+                           hierarchical_effects=NULL,
                            spatial=TRUE) {
   response_type <- match.arg(response_type)
   response <- .as_name(response)
   if(!is.null(buildings)) buildings <- .as_name(buildings)
+
+  effects <- .normalize_hierarchical_effects(
+    hierarchical_effects=hierarchical_effects,
+    random_effects=random_effects
+  )
+  effect_cols <- if(length(effects)) vapply(effects,`[[`,character(1),"column") else character()
+
   needed <- unique(c(response,buildings,covariates,
-                     if(spatial) coords else NULL,random_effects))
+                     if(spatial) coords else NULL,effect_cols))
   .validate_columns(data,needed)
+
   y <- data[[response]]
   detected <- detect_response_type(y)
   type <- if(response_type=="auto") detected else response_type
+  z <- y[!is.na(y)]
 
-  if(type=="count" && any(y < 0 | !.is_integerish(y[!is.na(y)]),na.rm=TRUE))
+  if(type=="count" && (any(z < 0) || !.is_integerish(z)))
     stop("COUNT response must be non-negative and integer-valued.",call.=FALSE)
-  if(type=="ppb" && any(y <= 0,na.rm=TRUE))
+  if(type=="ppb" && any(z <= 0))
     stop("PPB response must be strictly positive.",call.=FALSE)
 
   if(!identical(likelihood,"auto")) {
@@ -62,9 +80,13 @@ bottom_up_spec <- function(data, response, buildings=NULL,
            ".",call.=FALSE)
   }
 
-  structure(list(data=data,response=response,buildings=buildings,
-                 response_type=type,detected_type=detected,
-                 likelihood=likelihood,covariates=covariates,
-                 coords=coords,random_effects=random_effects,
-                 spatial=spatial),class="bottom_up_spec")
+  structure(list(
+    data=data,response=response,buildings=buildings,
+    response_type=type,detected_type=detected,
+    likelihood=likelihood,covariates=covariates %||% character(),
+    coords=coords,
+    random_effects=random_effects,
+    hierarchical_effects=effects,
+    spatial=spatial
+  ),class="bottom_up_spec")
 }
