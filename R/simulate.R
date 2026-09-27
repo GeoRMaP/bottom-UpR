@@ -91,6 +91,8 @@ simulate_bottom_up_data <- function(n=200L,seed=123,
     slope=slope,
     night_lights=night_lights,
     ppb=ppb,
+    population_from_ppb=as.integer(round(ppb*buildings)),
+    population_count=as.integer(population),
     population=as.integer(population),
     stringsAsFactors=FALSE
   )
