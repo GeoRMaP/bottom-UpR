@@ -385,6 +385,21 @@ grDevices::png(
 plot_spatial_field(nb_fit)
 grDevices::dev.off()
 
+# Posterior hierarchical effects (first effect shown here; pass effect= to select others).
+grDevices::png(
+  file.path(OUT_DIR,"gamma_hierarchical_source_effect.png"),
+  width=1600,height=1400,res=180
+)
+plot_hierarchical_effects(gamma_fit,effect=COL_SOURCE)
+grDevices::dev.off()
+
+grDevices::png(
+  file.path(OUT_DIR,"nb_hierarchical_source_effect.png"),
+  width=1600,height=1400,res=180
+)
+plot_hierarchical_effects(nb_fit,effect=COL_SOURCE)
+grDevices::dev.off()
+
 # Save posterior summaries.
 write.csv(
   gamma_fit$inla$summary.fixed,
@@ -459,6 +474,13 @@ run_cv <- function(response,response_type,likelihood,method,
     width=1400,height=1200,res=180
   )
   plot_observed_fitted(z)
+  grDevices::dev.off()
+
+  grDevices::png(
+    file.path(OUT_DIR,paste0(tag,"_diagnostics.png")),
+    width=1800,height=1500,res=180
+  )
+  plot_cv_diagnostics(z)
   grDevices::dev.off()
 
   z
