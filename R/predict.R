@@ -62,6 +62,10 @@
 
   for (i in seq_along(object$spec$hierarchical_effects)) {
     e <- object$spec$hierarchical_effects[[i]]
+    if (identical(e$prediction,"zero")) {
+      newdata[[e$internal]] <- NA_integer_
+      next
+    }
     m <- object$effect_maps[[i]]$map
     id <- unname(m[as.character(newdata[[e$column]])])
     newdata[[e$internal]] <- as.integer(id)
@@ -187,9 +191,11 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
     object$spec$covariates,
     if(object$spec$spatial) object$spec$coords else NULL,
     if(!is.null(object$spec$buildings)) object$spec$buildings else NULL,
-    if(length(object$spec$hierarchical_effects))
-      vapply(object$spec$hierarchical_effects,`[[`,character(1),"column")
-      else NULL,
+    if(length(object$spec$hierarchical_effects)) {
+      eff_keep <- Filter(function(e) !identical(e$prediction,"zero"),
+                         object$spec$hierarchical_effects)
+      if(length(eff_keep)) vapply(eff_keep,`[[`,character(1),"column") else NULL
+    } else NULL,
     aggregate_by
   ))
   .validate_columns(newdata,needed)
