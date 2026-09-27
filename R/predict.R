@@ -252,7 +252,9 @@ predict_bottom_up <- function(object,newdata=NULL,population=TRUE,
     for (s in seq_len(draws)) {
       smp <- ps[[s]]
 
-      intercept <- .sample_named(smp,exact="(Intercept)",default=NA_real_)
+      intercept <- .sample_named(smp,exact=".bottom_intercept",default=NA_real_)
+      if (!is.finite(intercept))
+        intercept <- .sample_named(smp,exact="(Intercept)",default=NA_real_)
       if (!is.finite(intercept))
         intercept <- .sample_named(smp,exact="Intercept",default=0)
       eta <- rep(intercept,nr)
