@@ -40,13 +40,23 @@
 
 .cv_metrics <- function(obs,pred,lower=NULL,upper=NULL) {
   ok <- is.finite(obs) & is.finite(pred)
+  cal_intercept <- NA_real_
+  cal_slope <- NA_real_
+  if(sum(ok) >= 3L && stats::sd(pred[ok]) > 0) {
+    cal <- stats::lm(obs[ok] ~ pred[ok])
+    cal_intercept <- unname(stats::coef(cal)[1])
+    cal_slope <- unname(stats::coef(cal)[2])
+  }
+
   ans <- data.frame(
     n=sum(ok),
     RMSE=sqrt(mean((pred[ok]-obs[ok])^2)),
     MAE=mean(abs(pred[ok]-obs[ok])),
     RMSLE=sqrt(mean((log1p(pmax(pred[ok],0))-log1p(pmax(obs[ok],0)))^2)),
     bias=mean(pred[ok]-obs[ok]),
-    total_ratio=sum(pred[ok])/sum(obs[ok])
+    total_ratio=sum(pred[ok])/sum(obs[ok]),
+    calibration_intercept=cal_intercept,
+    calibration_slope=cal_slope
   )
   if(!is.null(lower) && !is.null(upper)) {
     kk <- ok & is.finite(lower) & is.finite(upper)
@@ -288,6 +298,8 @@ bottom_up_cv <- function(data,response,buildings=NULL,
     pp <- data.frame(
       row_id=which(test_idx),
       fold=as.character(lab),
+      coord_x=test_raw[[coords[1]]],
+      coord_y=test_raw[[coords[2]]],
       observed=obs,
       predicted=pr$mean,
       lower=pr$lower,
@@ -337,5 +349,60 @@ print.bottom_up_cv <- function(x,...) {
   cat("  method :",x$method,"\n")
   cat("  folds  :",length(unique(x$predictions$fold)),"\n\n")
   print(x$metrics,row.names=FALSE)
+  invisible(x)
+}
+
+
+#' Moran's I for cross-validation residuals
+#'
+#' Computes binary-distance-band Moran's I for geographically held-out residuals.
+#' Coordinate units must match the supplied distance thresholds.
+#'
+#' @param object A `bottom_up_cv` object.
+#' @param distances Distance thresholds in coordinate units.
+#' @return Data frame of Moran's I statistics.
+#' @export
+bottom_up_residual_moran <- function(object,
+                                     distances=c(50000,100000,150000)) {
+  if(!inherits(object,"bottom_up_cv"))
+    stop("object must be bottom_up_cv.",call.=FALSE)
+
+  d <- object$predictions
+  ok <- is.finite(d$coord_x) & is.finite(d$coord_y) &
+        is.finite(d$observed) & is.finite(d$predicted)
+  d <- d[ok,,drop=FALSE]
+  if(nrow(d) < 3L) stop("Too few valid held-out predictions.",call.=FALSE)
+
+  xy <- as.matrix(d[,c("coord_x","coord_y")])
+  dd <- as.matrix(stats::dist(xy))
+  z <- d$observed-d$predicted
+  z <- z-mean(z)
+  denom <- sum(z^2)
+
+  out <- lapply(distances,function(th) {
+    w <- (dd > 0) & (dd <= th)
+    s0 <- sum(w)
+    I <- if(s0 > 0 && denom > 0)
+      nrow(d)/s0 * sum(w * tcrossprod(z))/denom else NA_real_
+    data.frame(distance=th,moran_I=I,n=nrow(d),links=s0)
+  })
+  do.call(rbind,out)
+}
+
+#' Plot residual Moran's I across distance bands
+#'
+#' @param object A `bottom_up_cv`.
+#' @param distances Distance thresholds.
+#' @return Invisibly returns Moran's I table.
+#' @export
+plot_residual_moran <- function(object,
+                                distances=c(50000,100000,150000)) {
+  x <- bottom_up_residual_moran(object,distances)
+  graphics::plot(
+    x$distance,x$moran_I,type="b",
+    xlab="Distance threshold",ylab="Held-out residual Moran's I",
+    main="Residual spatial autocorrelation"
+  )
+  graphics::abline(h=0,lty=2)
   invisible(x)
 }
