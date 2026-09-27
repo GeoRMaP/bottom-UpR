@@ -140,7 +140,9 @@
 
   if(!is.null(fit$cpo$failure) && any(fit$cpo$failure > 0,na.rm=TRUE))
     .bottom_up_warn("INLA reported CPO failures for some observations; inspect fit$cpo$failure.")
-  if(!is.null(fit$mode$status) && !identical(fit$mode$status,0L))
+  if(!is.null(fit$mode$status) &&
+     is.finite(fit$mode$status) &&
+     fit$mode$status != 0)
     .bottom_up_warn("INLA optimization returned a non-zero mode status; inspect fit$mode.")
   .bottom_up_progress(verbose,"Model fit complete",
                       paste0("likelihood=",likelihood))
@@ -292,7 +294,8 @@ bottom_up <- function(data,response,buildings=NULL,
     coords=coords,
     random_effects=random_effects,
     hierarchical_effects=hierarchical_effects,
-    spatial=spatial
+    spatial=spatial,
+    verbose=verbose
   )
   fit_bottom_up(spec,verbose=verbose,...)
 }
