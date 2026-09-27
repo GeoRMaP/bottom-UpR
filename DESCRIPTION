@@ -16,6 +16,8 @@ RoxygenNote: 7.3.2
 Imports:
     stats
 Suggests:
+    shiny,
+    leaflet,
     INLA,
     sf,
     Matrix,
