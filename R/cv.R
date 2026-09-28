@@ -81,6 +81,8 @@
 #' @param coords Coordinate columns.
 #' @param hierarchical_effects Optional hierarchy.
 #' @param spatial Use SPDE in the selector model?
+#' @param mesh Optional pre-built mesh. Reuse a common mesh to avoid rebuilding
+#'   triangulations during repeated selection/CV workflows.
 #' @param level Credible level.
 #' @param fallback Number of strongest effects to retain if none exclude zero.
 #' @param ... Passed to `bottom_up`.
@@ -93,6 +95,7 @@ bottom_up_inla_selector <- function(train_data,response,buildings=NULL,
                                     coords=c("x","y"),
                                     hierarchical_effects=NULL,
                                     spatial=TRUE,
+                                    mesh=NULL,
                                     level=.95,
                                     fallback=0L,
                                     verbose=TRUE,...) {
@@ -115,6 +118,7 @@ bottom_up_inla_selector <- function(train_data,response,buildings=NULL,
     coords=coords,
     hierarchical_effects=hierarchical_effects,
     spatial=spatial,
+    mesh=if(spatial) mesh else NULL,
     config=FALSE,
     verbose=verbose,
     ...
@@ -178,8 +182,18 @@ bottom_up_inla_selector <- function(train_data,response,buildings=NULL,
 #' @param folds Number of folds for random/spatial CV.
 #' @param block_size Spatial block width in coordinate units.
 #' @param group Grouping column for LORO/LOSO.
-#' @param covariate_selector Optional training-only selector function. It must
-#'   return a character vector of selected covariate names.
+#' @param covariate_selector Optional selector function.
+#' @param selection_mode Covariate-selection strategy: `"separate"` (default)
+#'   performs no selector fits inside CV and uses `fixed_covariates` (or
+#'   `covariates` if omitted); `"fold"` runs the selector independently in
+#'   each training fold for leakage-aware selection at higher computational cost.
+#' @param fixed_covariates Optional pre-selected covariates used when
+#'   `selection_mode="separate"`. These can be obtained in a prior,
+#'   explicitly separate selection step.
+#' @param selector_spatial Logical; if fold-specific selection is requested,
+#'   fit the selector with an SPDE field. Defaults to `FALSE` because a
+#'   non-spatial selector is much faster; set `TRUE` if spatial selection is
+#'   scientifically required.
 #' @param standardize Standardise covariates using training-fold means/SDs.
 #' @param selector_args Named list passed only to `covariate_selector`.
 #' @param prediction_draws Joint posterior draws per fold.
@@ -211,6 +225,9 @@ bottom_up_cv <- function(data,response,buildings=NULL,
                          folds=5L,block_size=100000,
                          group=NULL,
                          covariate_selector=NULL,
+                         selection_mode=c("separate","fold"),
+                         fixed_covariates=NULL,
+                         selector_spatial=FALSE,
                          standardize=TRUE,
                          selector_args=list(),
                          prediction_draws=200L,
@@ -223,16 +240,24 @@ bottom_up_cv <- function(data,response,buildings=NULL,
   response_type <- match.arg(response_type)
   method <- match.arg(method)
   cv_profile <- match.arg(cv_profile)
+  selection_mode <- match.arg(selection_mode)
 
   original_folds <- folds
   original_prediction_draws <- prediction_draws
   selector_requested <- is.function(covariate_selector)
+  if(selection_mode=="separate" && selector_requested) {
+    .bottom_up_warn(
+      "covariate_selector was supplied but selection_mode='separate'. ",
+      "The selector will not be run inside CV. Run selection separately and pass ",
+      "the result through fixed_covariates=, or use selection_mode='fold'."
+    )
+  }
 
   if(cv_profile=="fast") {
     if(method %in% c("random","spatial_block"))
       folds <- min(as.integer(folds),3L)
     prediction_draws <- min(as.integer(prediction_draws),50L)
-    if(selector_requested && !isTRUE(fast_keep_selector))
+    if(selection_mode=="fold" && selector_requested && !isTRUE(fast_keep_selector))
       covariate_selector <- NULL
 
     .bottom_up_warn(
@@ -249,7 +274,9 @@ bottom_up_cv <- function(data,response,buildings=NULL,
                         ", rows=",nrow(data),
                         ", folds=",if(method %in% c("random","spatial_block")) folds else "grouped",
                         ", prediction_draws=",prediction_draws,
-                        ", selector=",is.function(covariate_selector),
+                        ", selection_mode=",selection_mode,
+                        ", selector=",selection_mode=="fold" && is.function(covariate_selector),
+                        ", selector_spatial=",if(selection_mode=="fold") selector_spatial else FALSE,
                         ", spatial=",spatial
                       ))
   if(spatial || method=="spatial_block") .warn_coordinate_scale(data,coords)
@@ -270,6 +297,13 @@ bottom_up_cv <- function(data,response,buildings=NULL,
     verbose=verbose
   )
   rt <- spec0$response_type
+
+  if(selection_mode=="separate") {
+    if(is.null(fixed_covariates)) fixed_covariates <- covariates
+    fixed_covariates <- intersect(as.character(fixed_covariates),covariates)
+    if(!length(fixed_covariates) && length(covariates))
+      .bottom_up_warn("No fixed_covariates matched candidate covariates; CV will fit without fixed covariates.")
+  }
 
   if(method %in% c("random","spatial_block") && as.integer(folds) < 2L)
     stop("folds must be at least 2.",call.=FALSE)
@@ -329,8 +363,8 @@ bottom_up_cv <- function(data,response,buildings=NULL,
       list(center=numeric(),scale=numeric())
     train <- if(standardize) .apply_scaler(train_raw,scaler) else train_raw
 
-    selected <- covariates
-    if(is.function(covariate_selector)) {
+    selected <- if(selection_mode=="separate") fixed_covariates else covariates
+    if(selection_mode=="fold" && is.function(covariate_selector)) {
       sel_base <- list(
         train_data=train,
         response=response,
@@ -344,7 +378,10 @@ bottom_up_cv <- function(data,response,buildings=NULL,
       )
       selector_formals <- names(formals(covariate_selector))
       if("spatial" %in% selector_formals || "..." %in% selector_formals)
-        sel_base$spatial <- spatial
+        sel_base$spatial <- isTRUE(selector_spatial)
+      if(isTRUE(selector_spatial) &&
+         ("mesh" %in% selector_formals || "..." %in% selector_formals))
+        sel_base$mesh <- mesh
       sel_call <- c(sel_base,selector_args)
       selected <- do.call(covariate_selector,sel_call)
       selected <- intersect(as.character(selected),covariates)
@@ -438,13 +475,16 @@ bottom_up_cv <- function(data,response,buildings=NULL,
     list(
       method=method,
       cv_profile=cv_profile,
+      selection_mode=selection_mode,
+      selector_spatial=selector_spatial,
+      fixed_covariates=if(selection_mode=="separate") fixed_covariates else NULL,
       fast_settings=if(cv_profile=="fast") list(
         requested_folds=original_folds,
         used_folds=if(method %in% c("random","spatial_block")) folds else length(fold_labels),
         requested_prediction_draws=original_prediction_draws,
         used_prediction_draws=prediction_draws,
         selector_requested=selector_requested,
-        selector_used=is.function(covariate_selector)
+        selector_used=selection_mode=="fold" && is.function(covariate_selector)
       ) else NULL,
       predictions=predictions,
       metrics=overall,
