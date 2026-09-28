@@ -494,3 +494,61 @@ The demo intentionally triggers deterministic warnings and prints the complete
 warning catalogue. Data-dependent INLA diagnostics such as CPO failures or
 optimizer-status warnings are listed in the catalogue rather than deliberately
 forced through pathological fits.
+
+
+## Faster cross-validation during development
+
+Full `bottom_up_cv()` can be computationally expensive because each fold may
+fit a fold-specific covariate-selection model, fit the final fold model, and
+draw from the joint posterior for held-out prediction.
+
+For interactive development and debugging, use:
+
+```r
+cv_fast <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "spatial_block",
+  folds = 5,
+  block_size = 100000,
+  covariate_selector = bottom_up_inla_selector,
+  prediction_draws = 200,
+  mesh = mesh,
+  cv_profile = "fast",
+  seed = 123
+)
+```
+
+Fast mode is deliberately explicit. For random/spatial validation it uses at
+most 3 folds, caps held-out posterior prediction at 50 draws, and skips the
+fold-specific covariate selector by default. It emits a warning so these
+results are not accidentally treated as the final validation analysis.
+
+If you still want fold-specific selection in fast mode:
+
+```r
+cv_fast_selected <- bottom_up_cv(
+  ...,
+  cv_profile = "fast",
+  fast_keep_selector = TRUE
+)
+```
+
+For the final analysis, rerun with:
+
+```r
+cv_final <- bottom_up_cv(
+  ...,
+  cv_profile = "full"
+)
+```
+
+Additional ways to reduce run time while developing are to use an explicit
+likelihood instead of `likelihood="auto"`, temporarily reduce
+`prediction_draws`, and reuse a pre-built mesh.
