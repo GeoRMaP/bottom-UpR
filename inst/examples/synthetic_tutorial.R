@@ -414,6 +414,50 @@ selector_args <- list(
 )
 
 # =============================================================================
+# 11B. FAST DEVELOPMENT CV
+# =============================================================================
+
+# Full cross-validation can take substantial time because each fold may fit a
+# selector model, a final model, and then draw from the joint posterior.
+# Use cv_profile="fast" while developing/debugging the workflow.
+
+gamma_cv_fast <- bottom_up_cv(
+  data=ea,
+  response="ppb",
+  buildings="buildings",
+  response_type="ppb",
+  likelihood="gamma",
+  covariates=candidate_covariates,
+  coords=c("x_m","y_m"),
+  hierarchical_effects=effects,
+  method="spatial_block",
+  folds=5,
+  block_size=100000,
+  covariate_selector=bottom_up_inla_selector,
+  selector_args=selector_args,
+  standardize=TRUE,
+  prediction_draws=200,
+  mesh=mesh,
+  prior_range=c(100000,0.05),
+  prior_sigma=c(1,0.05),
+  cv_profile="fast",
+  seed=99,
+  verbose=TRUE
+)
+
+gamma_cv_fast$metrics
+gamma_cv_fast$fast_settings
+
+# For a quicker run that still performs fold-specific covariate selection:
+# gamma_cv_fast_selected <- bottom_up_cv(
+#   ...,
+#   cv_profile="fast",
+#   fast_keep_selector=TRUE
+# )
+
+# Use cv_profile="full" for the final validation runs below.
+
+# =============================================================================
 # 12. RANDOM CV
 # =============================================================================
 
