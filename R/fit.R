@@ -50,7 +50,6 @@
     d,
     unique(c(spec$response,spec$buildings,spec$covariates,spec$coords))
   )
-  .warn_sparse_groups(d,spec$hierarchical_effects)
   if(spec$spatial) .warn_coordinate_scale(d,spec$coords)
 
   family <- switch(
