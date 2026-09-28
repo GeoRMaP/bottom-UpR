@@ -153,3 +153,85 @@ test_that("chunk-wise and single-block posterior prediction agree", {
   expect_true(a$chunkwise)
   expect_false(b$chunkwise)
 })
+
+
+test_that("automatic likelihood selection reuses selected fit", {
+  skip_if_not_installed("INLA")
+  set.seed(91)
+
+  n <- 28L
+  d <- data.frame(
+    y = rpois(n, 8),
+    buildings = rep(5L, n),
+    x1 = rnorm(n),
+    x = seq_len(n),
+    yy = seq_len(n)
+  )
+
+  fit <- bottom_up(
+    data = d,
+    response = "y",
+    buildings = "buildings",
+    response_type = "count",
+    likelihood = "auto",
+    covariates = "x1",
+    coords = c("x", "yy"),
+    spatial = FALSE,
+    config = FALSE,
+    verbose = FALSE
+  )
+
+  expect_s3_class(fit, "bottom_up_fit")
+  expect_true(fit$likelihood %in% c("poisson", "nbinomial"))
+  expect_true(fit$likelihood %in% names(fit$selection$fits))
+  expect_identical(
+    fit$inla,
+    fit$selection$fits[[fit$likelihood]]$inla
+  )
+})
+
+test_that("separate-selection CV does not call supplied selector", {
+  skip_if_not_installed("INLA")
+  set.seed(92)
+
+  n <- 30L
+  d <- data.frame(
+    y = rpois(n, 10),
+    buildings = rep(5L, n),
+    x1 = rnorm(n),
+    x2 = rnorm(n),
+    x = seq_len(n),
+    yy = seq_len(n)
+  )
+
+  selector_that_must_not_run <- function(...) {
+    stop("selector should not be called")
+  }
+
+  expect_warning(
+    cv <- bottom_up_cv(
+      data = d,
+      response = "y",
+      buildings = "buildings",
+      response_type = "count",
+      likelihood = "poisson",
+      covariates = c("x1", "x2"),
+      fixed_covariates = "x1",
+      selection_mode = "separate",
+      covariate_selector = selector_that_must_not_run,
+      coords = c("x", "yy"),
+      spatial = FALSE,
+      method = "random",
+      folds = 2,
+      prediction_draws = 5,
+      verbose = FALSE,
+      seed = 5
+    ),
+    "selection_mode='separate'"
+  )
+
+  expect_s3_class(cv, "bottom_up_cv")
+  expect_equal(cv$selection_mode, "separate")
+  expect_equal(cv$fixed_covariates, "x1")
+  expect_true(all(vapply(cv$selected_covariates, identical, logical(1), "x1")))
+})
