@@ -5,7 +5,8 @@
 bottom_up_inla_selector(train_data, response, buildings = NULL,
   candidate_covariates, response_type, likelihood = "auto",
   coords = c("x", "y"), hierarchical_effects = NULL,
-  spatial = TRUE, level = 0.95, fallback = 0L, verbose = TRUE, ...)
+  spatial = TRUE, mesh = NULL, level = 0.95, fallback = 0L,
+  verbose = TRUE, ...)
 }
 \arguments{
 \item{train_data}{Training-fold data only.}
@@ -17,6 +18,7 @@ bottom_up_inla_selector(train_data, response, buildings = NULL,
 \item{coords}{Projected coordinate columns.}
 \item{hierarchical_effects}{Optional hierarchy.}
 \item{spatial}{Include an SPDE field in the selection model.}
+\item{mesh}{Optional pre-built mesh. Reusing a common mesh avoids repeated triangulation.}
 \item{level}{Posterior credible level.}
 \item{fallback}{Number of strongest signals retained if none exclude zero.}
 \item{verbose}{Logical; print selection progress and fallback warnings.}
