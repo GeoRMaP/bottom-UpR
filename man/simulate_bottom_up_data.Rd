@@ -3,7 +3,8 @@
 \title{Simulate synthetic bottom-up population data}
 \usage{
 simulate_bottom_up_data(n = 200L, seed = 123,
-  include_hierarchy = TRUE, extent = 300000, chunkwise = FALSE,\n  chunk_size = 50000L, verbose = TRUE)
+  include_hierarchy = TRUE, extent = 300000,
+  chunkwise = FALSE, chunk_size = 50000L, verbose = TRUE)
 }
 \arguments{
 \item{n}{Number of synthetic enumeration areas.}
