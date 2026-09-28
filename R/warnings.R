@@ -22,7 +22,7 @@ bottom_up_warning_catalogue <- function() {
       "prediction_nonfinite_buildings","prediction_negative_buildings",
       "aggregation_missing_group","aggregation_nonfinite_draws",
       "simulation_small_n","simulation_single_chunk",
-      "plot_no_fixed_effects"
+      "plot_no_fixed_effects","cv_fast_profile"
     ),
     category=c(
       "coordinates","hierarchy","missing_data",
@@ -35,7 +35,7 @@ bottom_up_warning_catalogue <- function() {
       "prediction","prediction","prediction","prediction",
       "aggregation","aggregation",
       "simulation","simulation",
-      "diagnostics"
+      "diagnostics","cross_validation"
     ),
     message=c(
       "Coordinates appear to be longitude/latitude degrees. SPDE mesh distances, block sizes, and range priors use coordinate units; project coordinates before distance-based spatial modelling.",
@@ -66,7 +66,8 @@ bottom_up_warning_catalogue <- function() {
       "Non-finite posterior draw values detected; aggregate summaries may be non-finite.",
       "Small synthetic sample size; spatial and cross-validation examples may be unstable.",
       "chunkwise=TRUE but chunk_size is at least n; simulation will use one chunk.",
-      "No fixed effects to plot."
+      "No fixed effects to plot.",
+      "cv_profile='fast' is for development/debugging only. It may reduce folds/posterior draws and may skip fold-specific covariate selection; use cv_profile='full' for final validation."
     ),
     trigger=c(
       "Coordinate names/values look geographic in a distance-based spatial workflow.",
@@ -97,7 +98,8 @@ bottom_up_warning_catalogue <- function() {
       "Posterior draw matrix contains NA/Inf.",
       "Synthetic n < 50.",
       "chunkwise simulation is requested with chunk_size >= n.",
-      "The fixed-effect posterior summary is empty after optional intercept removal."
+      "The fixed-effect posterior summary is empty after optional intercept removal.",
+      "cv_profile='fast' is selected."
     ),
     suggested_action=c(
       "Project coordinates and use matching distance units.",
@@ -128,7 +130,8 @@ bottom_up_warning_catalogue <- function() {
       "Inspect and correct the source posterior draws.",
       "Increase n for spatial/CV demonstrations.",
       "Use a smaller chunk_size.",
-      "Check whether the fitted model contains fixed covariates or request the intercept when appropriate."
+      "Check whether the fitted model contains fixed covariates or request the intercept when appropriate.",
+      "Use fast mode for iterative development only; rerun the final analysis with cv_profile='full'."
     ),
     stringsAsFactors=FALSE
   )
