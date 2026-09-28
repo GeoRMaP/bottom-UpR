@@ -495,3 +495,76 @@ links, and—when INLA is installed—prediction exposure/chunk warnings.
 Warnings that arise only from pathological or data-dependent INLA fits (for
 example CPO failures or non-zero optimization status) are catalogued but are
 not deliberately manufactured.
+
+
+## Faster separated cross-validation
+
+The computationally efficient workflow separates covariate selection from
+cross-validation. This avoids fitting a selector model inside every fold.
+
+```r
+selected <- bottom_up_inla_selector(
+  train_data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  candidate_covariates = candidate_covariates,
+  response_type = "ppb",
+  likelihood = "gamma",
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  spatial = FALSE,
+  fallback = 3
+)
+
+cv_fast_workflow <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  fixed_covariates = selected,
+  selection_mode = "separate",
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  spatial = TRUE,
+  method = "spatial_block",
+  folds = 5,
+  block_size = 100000,
+  prediction_draws = 100,
+  mesh = mesh
+)
+```
+
+This requires one separate selector fit followed by one fitted model per CV
+fold. It does not re-fit the selector inside each fold and it reuses the common
+mesh.
+
+If the target of validation includes the selection procedure itself, use the
+more expensive nested option explicitly:
+
+```r
+cv_nested <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  spatial = TRUE,
+  method = "spatial_block",
+  folds = 5,
+  block_size = 100000,
+  covariate_selector = bottom_up_inla_selector,
+  selection_mode = "fold",
+  selector_spatial = FALSE,
+  selector_args = list(fallback = 3),
+  prediction_draws = 100,
+  mesh = mesh
+)
+```
+
+The nested option is statistically stricter for evaluating the selection
+procedure, but substantially more computationally expensive.
