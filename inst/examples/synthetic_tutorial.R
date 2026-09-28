@@ -3,8 +3,9 @@
 #
 # This tutorial is fully reproducible and does not require Cameroon data.
 # It demonstrates:
-#   1. Synthetic EA data generation
-#   2. Exploratory plots
+#   1. Synthetic EA data generation: full-data and chunk-wise
+#   2. Complete warning catalogue and warning demonstrations
+#   3. Exploratory plots
 #   3. PPB and COUNT modelling
 #   4. Automatic likelihood selection
 #   5. Optional hierarchical effects
@@ -29,16 +30,69 @@ dir.create(OUT_DIR,showWarnings=FALSE,recursive=TRUE)
 # 1. SYNTHETIC EA DATA
 # =============================================================================
 
-ea <- simulate_bottom_up_data(
+# Generate the complete synthetic data in one call.
+ea_full <- simulate_bottom_up_data(
   n = 250,
   seed = 2026,
   include_hierarchy = TRUE,
-  extent = 300000
+  extent = 300000,
+  chunkwise = FALSE,
+  verbose = TRUE
 )
+
+# Generate exactly the same synthetic data in chunks. This is useful for
+# tutorials that want to demonstrate chunk-oriented workflows without changing
+# the data-generating process.
+ea_chunked <- simulate_bottom_up_data(
+  n = 250,
+  seed = 2026,
+  include_hierarchy = TRUE,
+  extent = 300000,
+  chunkwise = TRUE,
+  chunk_size = 60,
+  verbose = TRUE
+)
+
+# Same seed + same simulator = same synthetic data in either mode.
+simulation_equal <- isTRUE(
+  all.equal(
+    ea_full,
+    ea_chunked,
+    tolerance = 0,
+    check.attributes = TRUE
+  )
+)
+
+print(simulation_equal)
+stopifnot(simulation_equal)
+
+# Use the full-data version for the remainder of the tutorial.
+ea <- ea_full
 
 head(ea)
 summary(ea$population_count)
 summary(ea$ppb)
+
+# Save both so users can inspect them.
+saveRDS(ea_full,file.path(OUT_DIR,"synthetic_ea_full.rds"))
+saveRDS(ea_chunked,file.path(OUT_DIR,"synthetic_ea_chunked.rds"))
+
+# =============================================================================
+# 1B. PACKAGE WARNING CATALOGUE
+# =============================================================================
+
+warning_catalogue <- bottom_up_warning_catalogue()
+print(warning_catalogue)
+
+write.csv(
+  warning_catalogue,
+  file.path(OUT_DIR,"bottom_up_warning_catalogue.csv"),
+  row.names=FALSE
+)
+
+# The full warning catalogue is printed above. Deterministic examples that
+# intentionally trigger warnings are provided in:
+#   inst/examples/synthetic_warning_demo.R
 
 candidate_covariates <- c(
   "roads",
@@ -631,7 +685,23 @@ grid$national <- "Syntheticland"
 # 19. GAMMA JOINT-POSTERIOR FINE-GRID PREDICTION
 # =============================================================================
 
-gamma_grid <- predict_bottom_up(
+# All-at-once prediction.
+gamma_grid_full <- predict_bottom_up(
+  gamma_fit,
+  newdata=grid,
+  population=TRUE,
+  draws=250,
+  chunkwise=FALSE,
+  return_draws=FALSE,
+  aggregate_by=c("national","region"),
+  omit_effects="source",
+  marginalize_effects="ea_id",
+  seed=401,
+  verbose=TRUE
+)
+
+# Chunk-wise prediction of the same grid with the same posterior seed.
+gamma_grid_chunked <- predict_bottom_up(
   gamma_fit,
   newdata=grid,
   population=TRUE,
@@ -642,8 +712,30 @@ gamma_grid <- predict_bottom_up(
   aggregate_by=c("national","region"),
   omit_effects="source",
   marginalize_effects="ea_id",
-  seed=401
+  seed=401,
+  verbose=TRUE
 )
+
+# Chunking changes memory use, not the posterior target or draw identities.
+stopifnot(
+  isTRUE(all.equal(
+    gamma_grid_full$summary,
+    gamma_grid_chunked$summary,
+    tolerance=1e-10
+  )),
+  isTRUE(all.equal(
+    gamma_grid_full$aggregates$national,
+    gamma_grid_chunked$aggregates$national,
+    tolerance=1e-10
+  )),
+  isTRUE(all.equal(
+    gamma_grid_full$aggregates$region,
+    gamma_grid_chunked$aggregates$region,
+    tolerance=1e-10
+  ))
+)
+
+gamma_grid <- gamma_grid_chunked
 
 head(gamma_grid$summary)
 gamma_grid$aggregates$national
