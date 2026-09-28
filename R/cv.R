@@ -331,21 +331,21 @@ bottom_up_cv <- function(data,response,buildings=NULL,
 
     selected <- covariates
     if(is.function(covariate_selector)) {
-      sel_call <- c(
-        list(
-          train_data=train,
-          response=response,
-          buildings=buildings,
-          candidate_covariates=covariates,
-          response_type=rt,
-          likelihood=likelihood,
-          coords=coords,
-          hierarchical_effects=effects,
-          spatial=spatial,
-          verbose=verbose
-        ),
-        selector_args
+      sel_base <- list(
+        train_data=train,
+        response=response,
+        buildings=buildings,
+        candidate_covariates=covariates,
+        response_type=rt,
+        likelihood=likelihood,
+        coords=coords,
+        hierarchical_effects=effects,
+        verbose=verbose
       )
+      selector_formals <- names(formals(covariate_selector))
+      if("spatial" %in% selector_formals || "..." %in% selector_formals)
+        sel_base$spatial <- spatial
+      sel_call <- c(sel_base,selector_args)
       selected <- do.call(covariate_selector,sel_call)
       selected <- intersect(as.character(selected),covariates)
       if(!length(selected))
