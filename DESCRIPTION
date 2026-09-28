@@ -1,7 +1,7 @@
 Package: bottom.UpR
 Type: Package
 Title: Bayesian Bottom-Up Population Modelling with INLA-SPDE
-Version: 0.2.0
+Version: 0.2.1
 Authors@R: c(
     person("Chibuzor Christopher", "Nnanatu",
            email = "94153331+ChibuzorNnanatu@users.noreply.github.com",
