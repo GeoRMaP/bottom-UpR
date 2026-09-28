@@ -180,6 +180,13 @@ bottom_up_inla_selector <- function(train_data,response,buildings=NULL,
 #' @param standardize Standardise covariates using training-fold means/SDs.
 #' @param selector_args Named list passed only to `covariate_selector`.
 #' @param prediction_draws Joint posterior draws per fold.
+#' @param cv_profile Either `"full"` or `"fast"`. Fast mode is intended for
+#'   development/debugging: it caps random/spatial CV at 3 folds, caps posterior
+#'   prediction at 50 draws, and skips fold-specific covariate selection unless
+#'   `fast_keep_selector=TRUE`. It emits a warning because its results should
+#'   not replace the prespecified full validation analysis.
+#' @param fast_keep_selector Logical; when `cv_profile="fast"`, retain the
+#'   supplied fold-specific covariate selector instead of skipping it.
 #' @param mesh Optional common mesh. If omitted, random/spatial CV constructs a
 #'   full-location mesh once; grouped holdouts also reuse that geometry by
 #'   default. The mesh uses locations only, not outcomes.
@@ -203,14 +210,43 @@ bottom_up_cv <- function(data,response,buildings=NULL,
                          standardize=TRUE,
                          selector_args=list(),
                          prediction_draws=200L,
+                         cv_profile=c("full","fast"),
+                         fast_keep_selector=FALSE,
                          mesh=NULL,
                          mesh_args=list(),
                          seed=123,
                          verbose=TRUE,...) {
   response_type <- match.arg(response_type)
   method <- match.arg(method)
+  cv_profile <- match.arg(cv_profile)
+
+  original_folds <- folds
+  original_prediction_draws <- prediction_draws
+  selector_requested <- is.function(covariate_selector)
+
+  if(cv_profile=="fast") {
+    if(method %in% c("random","spatial_block"))
+      folds <- min(as.integer(folds),3L)
+    prediction_draws <- min(as.integer(prediction_draws),50L)
+    if(selector_requested && !isTRUE(fast_keep_selector))
+      covariate_selector <- NULL
+
+    .bottom_up_warn(
+      "cv_profile='fast' is for development/debugging only. ",
+      "It may reduce folds/posterior draws and may skip fold-specific covariate selection; ",
+      "use cv_profile='full' for final validation."
+    )
+  }
+
   .bottom_up_progress(verbose,"Starting cross-validation",
-                      paste0("method=",method,", rows=",nrow(data)))
+                      paste0(
+                        "method=",method,
+                        ", profile=",cv_profile,
+                        ", rows=",nrow(data),
+                        ", folds=",if(method %in% c("random","spatial_block")) folds else "grouped",
+                        ", prediction_draws=",prediction_draws,
+                        ", selector=",is.function(covariate_selector)
+                      ))
   .warn_coordinate_scale(data,coords)
   .warn_missingness(data,unique(c(response,buildings,covariates,coords,group)))
 
@@ -393,6 +429,15 @@ bottom_up_cv <- function(data,response,buildings=NULL,
   structure(
     list(
       method=method,
+      cv_profile=cv_profile,
+      fast_settings=if(cv_profile=="fast") list(
+        requested_folds=original_folds,
+        used_folds=if(method %in% c("random","spatial_block")) folds else length(fold_labels),
+        requested_prediction_draws=original_prediction_draws,
+        used_prediction_draws=prediction_draws,
+        selector_requested=selector_requested,
+        selector_used=is.function(covariate_selector)
+      ) else NULL,
       predictions=predictions,
       metrics=overall,
       metrics_by_fold=metrics_by_fold,
@@ -411,8 +456,9 @@ bottom_up_cv <- function(data,response,buildings=NULL,
 #' @export
 print.bottom_up_cv <- function(x,...) {
   cat("bottom-UpR cross-validation\n")
-  cat("  method :",x$method,"\n")
-  cat("  folds  :",length(unique(x$predictions$fold)),"\n\n")
+  cat("  method  :",x$method,"\n")
+  if(!is.null(x$cv_profile)) cat("  profile :",x$cv_profile,"\n")
+  cat("  folds   :",length(unique(x$predictions$fold)),"\n\n")
   print(x$metrics,row.names=FALSE)
   invisible(x)
 }
