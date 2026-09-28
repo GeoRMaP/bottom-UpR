@@ -24,18 +24,57 @@ other specific country.
 library(bottom.UpR)
 library(INLA)
 
-ea <- simulate_bottom_up_data(
+# Full-data simulation.
+ea_full <- simulate_bottom_up_data(
   n = 250,
   seed = 2026,
-  include_hierarchy = TRUE
+  include_hierarchy = TRUE,
+  chunkwise = FALSE,
+  verbose = TRUE
 )
+
+# Chunk-wise simulation with the same seed.
+ea_chunked <- simulate_bottom_up_data(
+  n = 250,
+  seed = 2026,
+  include_hierarchy = TRUE,
+  chunkwise = TRUE,
+  chunk_size = 60,
+  verbose = TRUE
+)
+
+stopifnot(
+  isTRUE(
+    all.equal(
+      ea_full,
+      ea_chunked,
+      tolerance = 0,
+      check.attributes = TRUE
+    )
+  )
+)
+
+ea <- ea_full
 
 head(ea)
 ```
 
 The data contain mapped building counts, projected coordinates, five continuous
 covariates, PPB and count responses, and optional source/settlement/region/EA
-grouping variables.
+grouping variables. With the same seed, full-data and chunk-wise simulation use
+the same random-number stream and return the same synthetic data.
+
+The complete package warning catalogue can be inspected with:
+
+```r
+warnings <- bottom_up_warning_catalogue()
+warnings
+```
+
+A runnable warning demonstration is installed at
+`inst/examples/synthetic_warning_demo.R`. It intentionally triggers
+deterministic warning conditions and prints the remaining diagnostic warnings
+that cannot be forced safely in a tutorial.
 
 ```r
 candidate_covariates <- c(
@@ -326,7 +365,20 @@ grid$national <- "Syntheticland"
 # 11. Joint-posterior fine-grid prediction
 
 ```r
-gamma_grid <- predict_bottom_up(
+gamma_grid_full <- predict_bottom_up(
+  gamma_fit,
+  newdata = grid,
+  population = TRUE,
+  draws = 250,
+  chunkwise = FALSE,
+  return_draws = FALSE,
+  aggregate_by = c("national", "region"),
+  omit_effects = "source",
+  marginalize_effects = "ea_id",
+  seed = 401
+)
+
+gamma_grid_chunked <- predict_bottom_up(
   gamma_fit,
   newdata = grid,
   population = TRUE,
@@ -340,13 +392,30 @@ gamma_grid <- predict_bottom_up(
   seed = 401
 )
 
+stopifnot(
+  isTRUE(all.equal(
+    gamma_grid_full$summary,
+    gamma_grid_chunked$summary,
+    tolerance = 1e-10
+  )),
+  isTRUE(all.equal(
+    gamma_grid_full$aggregates$national,
+    gamma_grid_chunked$aggregates$national,
+    tolerance = 1e-10
+  ))
+)
+
+gamma_grid <- gamma_grid_chunked
+
 head(gamma_grid$summary)
 gamma_grid$aggregates$national
 gamma_grid$aggregates$region
 ```
 
-The same joint posterior sample identities are retained across chunks.
-Administrative uncertainty is therefore computed from draw-wise totals.
+The same joint posterior sample identities are retained across chunks. The
+example above explicitly verifies that single-block and chunk-wise prediction
+return the same posterior summaries when the same seed is used. Administrative
+uncertainty is therefore computed from coherent draw-wise totals.
 
 # 12. Count-model grid prediction
 
@@ -386,3 +455,43 @@ The repository also contains a single executable script:
 
 It runs all tutorial stages, writes tables and figures, and saves fitted models
 and fine-grid posterior summaries.
+
+
+# 15. Warning catalogue and runnable warning examples
+
+List all package-level warning messages/patterns:
+
+```r
+warning_catalogue <- bottom_up_warning_catalogue()
+
+warning_catalogue[
+  c(
+    "category",
+    "message",
+    "trigger",
+    "suggested_action"
+  )
+]
+```
+
+Run the dedicated warning demonstration:
+
+```r
+warning_demo <- system.file(
+  "examples",
+  "synthetic_warning_demo.R",
+  package = "bottom.UpR"
+)
+
+source(warning_demo)
+```
+
+The script intentionally demonstrates warnings for small simulations, ineffective
+chunk sizes, response-type overrides, missing inputs, sparse hierarchy levels,
+longitude/latitude-like coordinates, unusual mesh settings, incomplete
+aggregation groups, non-finite posterior draws, Moran distance bands with no
+links, and—when INLA is installed—prediction exposure/chunk warnings.
+
+Warnings that arise only from pathological or data-dependent INLA fits (for
+example CPO failures or non-zero optimization status) are catalogued but are
+not deliberately manufactured.
