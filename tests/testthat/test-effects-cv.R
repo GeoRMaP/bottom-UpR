@@ -109,3 +109,45 @@ test_that("synthetic simulator supports quiet mode", {
   )
   expect_equal(nrow(d), 50)
 })
+
+
+test_that("full and chunk-wise synthetic simulation agree", {
+  a <- simulate_bottom_up_data(
+    n = 80,
+    seed = 42,
+    chunkwise = FALSE,
+    verbose = FALSE
+  )
+
+  b <- simulate_bottom_up_data(
+    n = 80,
+    seed = 42,
+    chunkwise = TRUE,
+    chunk_size = 17,
+    verbose = FALSE
+  )
+
+  expect_identical(a, b)
+})
+
+test_that("warning catalogue contains required fields", {
+  x <- bottom_up_warning_catalogue()
+
+  expect_true(is.data.frame(x))
+  expect_true(all(
+    c("category", "message", "trigger", "suggested_action") %in% names(x)
+  ))
+  expect_gt(nrow(x), 10)
+  expect_true(all(nzchar(x$message)))
+})
+
+test_that("synthetic warning demo is installed", {
+  p <- system.file(
+    "examples",
+    "synthetic_warning_demo.R",
+    package = "bottom.UpR"
+  )
+
+  expect_true(nzchar(p))
+  expect_true(file.exists(p))
+})
