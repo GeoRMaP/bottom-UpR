@@ -233,13 +233,43 @@ select_likelihood <- function(spec,mesh=NULL,
 #' @param prior_sigma PC spatial-SD prior.
 #' @param config Enable INLA joint-posterior configuration.
 #' @param verbose Logical; print progress messages.
+#' @param ... Reserved compatibility arguments. CV-only arguments accidentally
+#'   forwarded by older `bottom_up_cv()` versions are ignored with a warning
+#'   instead of causing an unused-argument error.
 #' @return A `bottom_up_fit`.
 #' @export
 fit_bottom_up <- function(spec,mesh=NULL,
                           prior_range=c(100,.05),
                           prior_sigma=c(1,.05),
                           config=TRUE,
-                          verbose=TRUE) {
+                          verbose=TRUE,...) {
+  compat_dots <- list(...)
+  if(length(compat_dots)) {
+    cv_only <- c(
+      "fixed_covariates","selection_mode","selector_spatial",
+      "covariate_selector","selector_args","standardize",
+      "prediction_draws","cv_profile","fast_keep_selector",
+      "folds","block_size","group","method"
+    )
+    bad <- intersect(names(compat_dots),cv_only)
+    unknown <- setdiff(names(compat_dots),cv_only)
+
+    if(length(bad)) {
+      .bottom_up_warn(
+        "Ignoring CV-only argument(s) forwarded to fit_bottom_up(): ",
+        paste(bad,collapse=", "),
+        ". Update/restart bottom.UpR so bottom_up_cv() handles these arguments directly."
+      )
+    }
+    if(length(unknown)) {
+      stop(
+        "Unused fitting argument(s): ",
+        paste(unknown,collapse=", "),
+        call.=FALSE
+      )
+    }
+  }
+
   .bottom_up_progress(verbose,"Starting bottom-UpR fit")
   if(spec$likelihood=="auto") {
     sel <- select_likelihood(
