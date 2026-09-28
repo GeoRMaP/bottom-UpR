@@ -4,7 +4,7 @@
 \usage{
 bottom_up_cv(data, response, buildings = NULL,
   response_type = c("auto", "count", "ppb"), likelihood = "auto",
-  covariates = NULL, coords = c("x", "y"),
+  covariates = NULL, coords = c("x", "y"), spatial = TRUE,
   hierarchical_effects = NULL, random_effects = NULL,
   method = c("spatial_block", "random", "loro", "loso"),
   folds = 5L, block_size = 100000, group = NULL,
@@ -20,7 +20,8 @@ bottom_up_cv(data, response, buildings = NULL,
 \item{response_type}{Automatic, count, or PPB response type.}
 \item{likelihood}{Automatic or explicit supported likelihood.}
 \item{covariates}{Candidate covariates.}
-\item{coords}{Projected coordinate columns.}
+\item{coords}{Coordinate columns used for spatial modelling and/or spatial-block fold assignment.}
+\item{spatial}{Logical; fit an SPDE spatial field within each fold. Set to \code{FALSE} for a faster non-spatial development pass.}
 \item{hierarchical_effects}{Optional adaptable hierarchical effects.}
 \item{random_effects}{Backward-compatible IID effect shorthand.}
 \item{method}{Random, spatial-block, LORO, or LOSO validation.}
