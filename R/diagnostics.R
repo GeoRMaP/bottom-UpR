@@ -154,7 +154,7 @@ plot_posterior_fixed <- function(object,include_intercept=FALSE,
   if(!include_intercept)
     sm <- sm[!rownames(sm) %in% c("(Intercept)","Intercept"),,drop=FALSE]
   if(!nrow(sm)) {
-    warning("No fixed effects to plot.")
+    .bottom_up_warn("No fixed effects to plot.")
     return(invisible(sm))
   }
 
