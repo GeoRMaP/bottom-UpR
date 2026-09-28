@@ -169,12 +169,16 @@
 #' @param mesh Optional common mesh.
 #' @param prior_range PC prior range specification.
 #' @param prior_sigma PC prior spatial-SD specification.
+#' @param config Enable joint-posterior configuration in candidate fits. When
+#'   called by `fit_bottom_up()`, this allows the selected candidate fit to be
+#'   reused without a redundant third INLA fit.
 #' @param verbose Logical; print progress messages.
 #' @return List containing selected likelihood and candidate scores.
 #' @export
 select_likelihood <- function(spec,mesh=NULL,
                               prior_range=c(100,.05),
                               prior_sigma=c(1,.05),
+                              config=FALSE,
                               verbose=TRUE) {
   if(!inherits(spec,"bottom_up_spec"))
     stop("spec must be bottom_up_spec.",call.=FALSE)
@@ -190,10 +194,11 @@ select_likelihood <- function(spec,mesh=NULL,
   fits <- lapply(candidates,function(z)
     .fit_candidate(
       spec,z,mesh,prior_range,prior_sigma,
-      config=FALSE,
+      config=config,
       verbose=verbose
     )
   )
+  names(fits) <- candidates
 
   y <- spec$data[[spec$response]]
   scores <- vapply(
@@ -238,20 +243,29 @@ fit_bottom_up <- function(spec,mesh=NULL,
                           verbose=TRUE) {
   .bottom_up_progress(verbose,"Starting bottom-UpR fit")
   if(spec$likelihood=="auto") {
-    sel <- select_likelihood(spec,mesh,prior_range,prior_sigma,verbose=verbose)
+    sel <- select_likelihood(
+      spec,mesh,prior_range,prior_sigma,
+      config=config,
+      verbose=verbose
+    )
     likelihood <- sel$selected
     mesh <- sel$mesh
+    z <- sel$fits[[likelihood]]
+    .bottom_up_progress(
+      verbose,
+      "Reusing selected likelihood fit",
+      paste0("likelihood=",likelihood,", no redundant refit")
+    )
   } else {
     likelihood <- spec$likelihood
     sel <- NULL
+    z <- .fit_candidate(
+      spec,likelihood,mesh,
+      prior_range,prior_sigma,
+      config=config,
+      verbose=verbose
+    )
   }
-
-  z <- .fit_candidate(
-    spec,likelihood,mesh,
-    prior_range,prior_sigma,
-    config=config,
-    verbose=verbose
-  )
 
   .bottom_up_progress(verbose,"bottom-UpR fit finished",
                       paste0("likelihood=",likelihood))
