@@ -179,15 +179,47 @@ building exposure.
 Generate a reproducible synthetic EA-level data set:
 
 ```r
-ea <- simulate_bottom_up_data(
+# Simulate all rows in one block.
+ea_full <- simulate_bottom_up_data(
   n = 250,
   seed = 2026,
   include_hierarchy = TRUE,
-  extent = 300000
+  extent = 300000,
+  chunkwise = FALSE,
+  verbose = TRUE
 )
+
+# Simulate the same data in chunks.
+ea_chunked <- simulate_bottom_up_data(
+  n = 250,
+  seed = 2026,
+  include_hierarchy = TRUE,
+  extent = 300000,
+  chunkwise = TRUE,
+  chunk_size = 60,
+  verbose = TRUE
+)
+
+# Full and chunk-wise simulation are reproducibly equivalent.
+stopifnot(
+  isTRUE(
+    all.equal(
+      ea_full,
+      ea_chunked,
+      tolerance = 0,
+      check.attributes = TRUE
+    )
+  )
+)
+
+ea <- ea_full
 
 head(ea)
 ```
+
+The simulator supports both all-at-once and chunk-wise generation. With the
+same seed, both modes use the same variable-wise random-number stream so the
+tutorial can verify that chunking does not change the simulated data.
 
 The synthetic data include:
 
@@ -1720,3 +1752,92 @@ continuing, including:
 
 Warnings should be reviewed rather than automatically suppressed, because many
 of them indicate a mismatch between the data and the intended model semantics.
+
+
+# Complete warning catalogue
+
+All package-level warning messages/patterns, their triggers, and recommended
+actions can be listed programmatically:
+
+```r
+warning_catalogue <- bottom_up_warning_catalogue()
+
+warning_catalogue[
+  c(
+    "category",
+    "message",
+    "trigger",
+    "suggested_action"
+  )
+]
+```
+
+The package also installs a runnable warning demonstration:
+
+```r
+warning_demo <- system.file(
+  "examples",
+  "synthetic_warning_demo.R",
+  package = "bottom.UpR"
+)
+
+source(warning_demo)
+```
+
+This script intentionally triggers deterministic warning conditions while
+printing the complete catalogue. INLA CPO failures, optimizer-status warnings,
+non-finite automatic-likelihood scores, and other genuinely data-dependent
+diagnostics are catalogued rather than artificially manufactured.
+
+# Verifying full-grid versus chunk-wise posterior prediction
+
+For a moderate synthetic grid, the same fitted model can be predicted in a
+single block and in chunks:
+
+```r
+pred_full <- predict_bottom_up(
+  gamma_fit,
+  newdata = grid,
+  population = TRUE,
+  draws = 250,
+  chunkwise = FALSE,
+  aggregate_by = c("national", "region"),
+  omit_effects = "source",
+  marginalize_effects = "ea_id",
+  seed = 401
+)
+
+pred_chunked <- predict_bottom_up(
+  gamma_fit,
+  newdata = grid,
+  population = TRUE,
+  draws = 250,
+  chunkwise = TRUE,
+  chunk_size = 500,
+  aggregate_by = c("national", "region"),
+  omit_effects = "source",
+  marginalize_effects = "ea_id",
+  seed = 401
+)
+
+stopifnot(
+  isTRUE(
+    all.equal(
+      pred_full$summary,
+      pred_chunked$summary,
+      tolerance = 1e-10
+    )
+  ),
+  isTRUE(
+    all.equal(
+      pred_full$aggregates$national,
+      pred_chunked$aggregates$national,
+      tolerance = 1e-10
+    )
+  )
+)
+```
+
+This check demonstrates that chunking is a memory-management strategy. It does
+not intentionally alter posterior draw identity or the resulting posterior
+summaries.
