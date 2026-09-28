@@ -90,10 +90,24 @@ omitted without changing the fitted model, for example
 - grouped leave-one-region-out style validation;
 - grouped leave-one-source-out style validation.
 
-Scaling is estimated from the training fold only. A covariate-selector callback
-is also executed separately within every training fold.
+Scaling is estimated from each training fold. For speed, covariate selection is
+**separate from CV by default**: select once, then validate the fixed covariate
+set. This avoids fitting an extra INLA selector model inside every fold.
 
 ```r
+selected <- bottom_up_inla_selector(
+  train_data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  candidate_covariates = candidate_covariates,
+  response_type = "ppb",
+  likelihood = "gamma",
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  spatial = FALSE,
+  fallback = 3
+)
+
 cv100 <- bottom_up_cv(
   data = ea,
   response = "ppb",
@@ -101,14 +115,15 @@ cv100 <- bottom_up_cv(
   response_type = "ppb",
   likelihood = "gamma",
   covariates = candidate_covariates,
+  fixed_covariates = selected,
+  selection_mode = "separate",
   coords = c("x_m", "y_m"),
   hierarchical_effects = effects,
   method = "spatial_block",
   folds = 5,
   block_size = 100000,
-  covariate_selector = bottom_up_inla_selector,
-  selector_args = list(fallback = 8),
-  prediction_draws = 300
+  prediction_draws = 100,
+  mesh = mesh
 )
 
 cv100$metrics
@@ -552,3 +567,36 @@ cv_final <- bottom_up_cv(
 Additional ways to reduce run time while developing are to use an explicit
 likelihood instead of `likelihood="auto"`, temporarily reduce
 `prediction_draws`, and reuse a pre-built mesh.
+
+
+### Nested fold-specific covariate selection
+
+If the validation target must include the covariate-selection procedure itself,
+request the more expensive nested workflow explicitly:
+
+```r
+cv_nested <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "spatial_block",
+  folds = 5,
+  block_size = 100000,
+  covariate_selector = bottom_up_inla_selector,
+  selection_mode = "fold",
+  selector_spatial = FALSE,
+  selector_args = list(fallback = 3),
+  mesh = mesh,
+  prediction_draws = 100
+)
+```
+
+Set `selector_spatial = TRUE` only when spatial covariate selection is
+scientifically required. In that case the common CV mesh is passed to
+`bottom_up_inla_selector()`, so the selector no longer rebuilds a mesh inside
+every fold.
