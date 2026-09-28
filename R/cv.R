@@ -168,7 +168,10 @@ bottom_up_inla_selector <- function(train_data,response,buildings=NULL,
 #' @param response_type `"auto"`, `"count"`, or `"ppb"`.
 #' @param likelihood Likelihood or `"auto"`.
 #' @param covariates Candidate covariates.
-#' @param coords Projected coordinate columns.
+#' @param coords Coordinate columns. They are still used for spatial-block fold
+#'   assignment and residual diagnostics when `spatial=FALSE`.
+#' @param spatial Logical; fit an SPDE spatial field within each fold. Set
+#'   `FALSE` for a much faster non-spatial development pass.
 #' @param hierarchical_effects Optional adaptable hierarchical effects.
 #' @param random_effects Backward-compatible IID shorthand.
 #' @param method Validation method.
@@ -201,6 +204,7 @@ bottom_up_cv <- function(data,response,buildings=NULL,
                          response_type=c("auto","count","ppb"),
                          likelihood="auto",covariates=NULL,
                          coords=c("x","y"),
+                         spatial=TRUE,
                          hierarchical_effects=NULL,
                          random_effects=NULL,
                          method=c("spatial_block","random","loro","loso"),
@@ -245,9 +249,10 @@ bottom_up_cv <- function(data,response,buildings=NULL,
                         ", rows=",nrow(data),
                         ", folds=",if(method %in% c("random","spatial_block")) folds else "grouped",
                         ", prediction_draws=",prediction_draws,
-                        ", selector=",is.function(covariate_selector)
+                        ", selector=",is.function(covariate_selector),
+                        ", spatial=",spatial
                       ))
-  .warn_coordinate_scale(data,coords)
+  if(spatial || method=="spatial_block") .warn_coordinate_scale(data,coords)
   .warn_missingness(data,unique(c(response,buildings,covariates,coords,group)))
 
   effects <- .normalize_hierarchical_effects(
@@ -261,7 +266,7 @@ bottom_up_cv <- function(data,response,buildings=NULL,
     data=data,response=response,buildings=buildings,
     response_type=response_type,likelihood=likelihood,
     covariates=covariates,coords=coords,
-    hierarchical_effects=effects,spatial=TRUE,
+    hierarchical_effects=effects,spatial=spatial,
     verbose=verbose
   )
   rt <- spec0$response_type
@@ -293,12 +298,14 @@ bottom_up_cv <- function(data,response,buildings=NULL,
                       paste0("folds=",length(fold_labels),
                              ", sizes=",paste(as.integer(fold_sizes),collapse="/")))
 
-  if(is.null(mesh)) {
+  if(spatial && is.null(mesh)) {
     mesh <- do.call(
       make_bottom_up_mesh,
       c(list(data=data,coords=coords,verbose=verbose),mesh_args)
     )
   }
+  if(!spatial && !is.null(mesh))
+    .bottom_up_warn("A mesh was supplied with spatial=FALSE and will be ignored.")
 
   all_pred <- vector("list",length(fold_labels))
   selected_sets <- vector("list",length(fold_labels))
@@ -334,6 +341,7 @@ bottom_up_cv <- function(data,response,buildings=NULL,
           likelihood=likelihood,
           coords=coords,
           hierarchical_effects=effects,
+          spatial=spatial,
           verbose=verbose
         ),
         selector_args
@@ -356,8 +364,8 @@ bottom_up_cv <- function(data,response,buildings=NULL,
         covariates=selected,
         coords=coords,
         hierarchical_effects=effects,
-        spatial=TRUE,
-        mesh=mesh,
+        spatial=spatial,
+        mesh=if(spatial) mesh else NULL,
         config=TRUE,
         verbose=verbose
       ),
@@ -447,6 +455,7 @@ bottom_up_cv <- function(data,response,buildings=NULL,
       block_size=if(method=="spatial_block") block_size else NULL,
       group=group,
       mesh=mesh,
+      spatial=spatial,
       response_type=rt
     ),
     class="bottom_up_cv"
