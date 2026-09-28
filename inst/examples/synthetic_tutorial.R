@@ -159,14 +159,13 @@ effects <- list(
     model="iid",
     prediction="known",
     label="region x settlement"
-  ),
-  list(
-    column="ea_id",
-    model="iid",
-    prediction="known",
-    label="EA residual heterogeneity"
   )
 )
+
+# ea_id is intentionally NOT included by default because this synthetic data
+# has one observation per EA. A singleton IID effect adds latent dimension and
+# is weakly identified. Include it only when there are repeated observations
+# per EA or when an observation-level IID term is scientifically intended.
 
 # To fit without hierarchy, use:
 # effects <- NULL
@@ -807,7 +806,6 @@ gamma_grid_full <- predict_bottom_up(
   return_draws=FALSE,
   aggregate_by=c("national","region"),
   omit_effects="source",
-  marginalize_effects="ea_id",
   seed=401,
   verbose=TRUE
 )
@@ -823,7 +821,6 @@ gamma_grid_chunked <- predict_bottom_up(
   return_draws=FALSE,
   aggregate_by=c("national","region"),
   omit_effects="source",
-  marginalize_effects="ea_id",
   seed=401,
   verbose=TRUE
 )
@@ -866,7 +863,6 @@ nb_grid_full <- predict_bottom_up(
   return_draws=FALSE,
   aggregate_by=c("national","region"),
   omit_effects="source",
-  marginalize_effects="ea_id",
   seed=402,
   verbose=TRUE
 )
@@ -881,7 +877,6 @@ nb_grid_chunked <- predict_bottom_up(
   return_draws=FALSE,
   aggregate_by=c("national","region"),
   omit_effects="source",
-  marginalize_effects="ea_id",
   seed=402,
   verbose=TRUE
 )
