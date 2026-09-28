@@ -745,7 +745,21 @@ head(gamma_grid$aggregates$region)
 # 20. NB JOINT-POSTERIOR FINE-GRID PREDICTION
 # =============================================================================
 
-nb_grid <- predict_bottom_up(
+nb_grid_full <- predict_bottom_up(
+  nb_fit,
+  newdata=grid,
+  population=TRUE,
+  draws=250,
+  chunkwise=FALSE,
+  return_draws=FALSE,
+  aggregate_by=c("national","region"),
+  omit_effects="source",
+  marginalize_effects="ea_id",
+  seed=402,
+  verbose=TRUE
+)
+
+nb_grid_chunked <- predict_bottom_up(
   nb_fit,
   newdata=grid,
   population=TRUE,
@@ -756,9 +770,24 @@ nb_grid <- predict_bottom_up(
   aggregate_by=c("national","region"),
   omit_effects="source",
   marginalize_effects="ea_id",
-  seed=402
+  seed=402,
+  verbose=TRUE
 )
 
+stopifnot(
+  isTRUE(all.equal(
+    nb_grid_full$summary,
+    nb_grid_chunked$summary,
+    tolerance=1e-10
+  )),
+  isTRUE(all.equal(
+    nb_grid_full$aggregates$national,
+    nb_grid_chunked$aggregates$national,
+    tolerance=1e-10
+  ))
+)
+
+nb_grid <- nb_grid_chunked
 nb_grid$aggregates$national
 
 # =============================================================================
