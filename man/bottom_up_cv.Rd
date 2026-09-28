@@ -10,6 +10,7 @@ bottom_up_cv(data, response, buildings = NULL,
   folds = 5L, block_size = 100000, group = NULL,
   covariate_selector = NULL, standardize = TRUE,
   selector_args = list(), prediction_draws = 200L,
+  cv_profile = c("full", "fast"), fast_keep_selector = FALSE,
   mesh = NULL, mesh_args = list(), seed = 123, verbose = TRUE, ...)
 }
 \arguments{
@@ -30,6 +31,8 @@ bottom_up_cv(data, response, buildings = NULL,
 \item{standardize}{Standardize covariates using training-fold parameters.}
 \item{selector_args}{Named list passed only to the selector.}
 \item{prediction_draws}{Joint posterior draws used for held-out prediction.}
+\item{cv_profile}{\code{"full"} for the requested validation workflow or \code{"fast"} for development/debugging. Fast mode caps random/spatial CV at 3 folds, caps posterior prediction at 50 draws, and skips fold-specific covariate selection unless requested.}
+\item{fast_keep_selector}{When \code{cv_profile="fast"}, retain the supplied fold-specific covariate selector.}
 \item{mesh}{Optional common SPDE mesh.}
 \item{mesh_args}{Arguments for mesh construction if \code{mesh} is absent.}
 \item{seed}{Random seed.}
