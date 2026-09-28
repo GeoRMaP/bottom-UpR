@@ -8,7 +8,8 @@ bottom_up_cv(data, response, buildings = NULL,
   hierarchical_effects = NULL, random_effects = NULL,
   method = c("spatial_block", "random", "loro", "loso"),
   folds = 5L, block_size = 100000, group = NULL,
-  covariate_selector = NULL, standardize = TRUE,
+  covariate_selector = NULL, selection_mode = c("separate", "fold"),
+  fixed_covariates = NULL, selector_spatial = FALSE, standardize = TRUE,
   selector_args = list(), prediction_draws = 200L,
   cv_profile = c("full", "fast"), fast_keep_selector = FALSE,
   mesh = NULL, mesh_args = list(), seed = 123, verbose = TRUE, ...)
@@ -28,7 +29,10 @@ bottom_up_cv(data, response, buildings = NULL,
 \item{folds}{Number of folds for random/spatial validation.}
 \item{block_size}{Spatial block width in coordinate units.}
 \item{group}{Holdout grouping column for LORO/LOSO.}
-\item{covariate_selector}{Optional training-fold selector function.}
+\item{covariate_selector}{Optional covariate selector function.}
+\item{selection_mode}{\code{"separate"} (default) uses a pre-selected fixed covariate set and performs no selector fits inside CV; \code{"fold"} runs selection independently in each training fold.}
+\item{fixed_covariates}{Optional pre-selected covariates used when \code{selection_mode="separate"}. Defaults to \code{covariates}.}
+\item{selector_spatial}{When \code{selection_mode="fold"}, fit the selector with an SPDE field. Defaults to \code{FALSE} for speed.}
 \item{standardize}{Standardize covariates using training-fold parameters.}
 \item{selector_args}{Named list passed only to the selector.}
 \item{prediction_draws}{Joint posterior draws used for held-out prediction.}
@@ -41,4 +45,4 @@ bottom_up_cv(data, response, buildings = NULL,
 \item{...}{Additional fitting arguments.}
 }
 \value{A \code{bottom_up_cv} object.}
-\description{Leakage-aware validation with fold-specific scaling and optional fold-specific INLA covariate selection.}
+\description{Cross-validation with fold-specific scaling. Covariate selection is separate by default for speed, with explicit fold-specific nested selection available when required.}
