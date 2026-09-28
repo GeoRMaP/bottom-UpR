@@ -22,7 +22,8 @@ bottom_up_warning_catalogue <- function() {
       "prediction_nonfinite_buildings","prediction_negative_buildings",
       "aggregation_missing_group","aggregation_nonfinite_draws",
       "simulation_small_n","simulation_single_chunk",
-      "plot_no_fixed_effects","cv_fast_profile"
+      "plot_no_fixed_effects","cv_fast_profile",
+      "cv_selector_ignored_separate"
     ),
     category=c(
       "coordinates","hierarchy","missing_data",
@@ -35,7 +36,8 @@ bottom_up_warning_catalogue <- function() {
       "prediction","prediction","prediction","prediction",
       "aggregation","aggregation",
       "simulation","simulation",
-      "diagnostics","cross_validation"
+      "diagnostics","cross_validation",
+      "cross_validation"
     ),
     message=c(
       "Coordinates appear to be longitude/latitude degrees. SPDE mesh distances, block sizes, and range priors use coordinate units; project coordinates before distance-based spatial modelling.",
@@ -67,7 +69,8 @@ bottom_up_warning_catalogue <- function() {
       "Small synthetic sample size; spatial and cross-validation examples may be unstable.",
       "chunkwise=TRUE but chunk_size is at least n; simulation will use one chunk.",
       "No fixed effects to plot.",
-      "cv_profile='fast' is for development/debugging only. It may reduce folds/posterior draws and may skip fold-specific covariate selection; use cv_profile='full' for final validation."
+      "cv_profile='fast' is for development/debugging only. It may reduce folds/posterior draws and may skip fold-specific covariate selection; use cv_profile='full' for final validation.",
+      "covariate_selector was supplied but selection_mode='separate'. The selector will not be run inside CV. Run selection separately and pass the result through fixed_covariates=, or use selection_mode='fold'."
     ),
     trigger=c(
       "Coordinate names/values look geographic in a distance-based spatial workflow.",
@@ -99,7 +102,8 @@ bottom_up_warning_catalogue <- function() {
       "Synthetic n < 50.",
       "chunkwise simulation is requested with chunk_size >= n.",
       "The fixed-effect posterior summary is empty after optional intercept removal.",
-      "cv_profile='fast' is selected."
+      "cv_profile='fast' is selected.",
+      "A covariate selector is supplied while selection_mode='separate'."
     ),
     suggested_action=c(
       "Project coordinates and use matching distance units.",
@@ -131,7 +135,8 @@ bottom_up_warning_catalogue <- function() {
       "Increase n for spatial/CV demonstrations.",
       "Use a smaller chunk_size.",
       "Check whether the fitted model contains fixed covariates or request the intercept when appropriate.",
-      "Use fast mode for iterative development only; rerun the final analysis with cv_profile='full'."
+      "Use fast mode for iterative development only; rerun the final analysis with cv_profile='full'.",
+      "Run the selector once before CV and pass fixed_covariates, or explicitly request selection_mode='fold'."
     ),
     stringsAsFactors=FALSE
   )
