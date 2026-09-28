@@ -21,7 +21,8 @@ bottom_up_warning_catalogue <- function() {
       "prediction_single_chunk","prediction_large_draw_matrix",
       "prediction_nonfinite_buildings","prediction_negative_buildings",
       "aggregation_missing_group","aggregation_nonfinite_draws",
-      "simulation_small_n","simulation_single_chunk"
+      "simulation_small_n","simulation_single_chunk",
+      "plot_no_fixed_effects"
     ),
     category=c(
       "coordinates","hierarchy","missing_data",
@@ -33,7 +34,8 @@ bottom_up_warning_catalogue <- function() {
       "moran","moran",
       "prediction","prediction","prediction","prediction",
       "aggregation","aggregation",
-      "simulation","simulation"
+      "simulation","simulation",
+      "diagnostics"
     ),
     message=c(
       "Coordinates appear to be longitude/latitude degrees. SPDE mesh distances, block sizes, and range priors use coordinate units; project coordinates before distance-based spatial modelling.",
@@ -63,7 +65,8 @@ bottom_up_warning_catalogue <- function() {
       "Missing group labels are excluded from posterior aggregation.",
       "Non-finite posterior draw values detected; aggregate summaries may be non-finite.",
       "Small synthetic sample size; spatial and cross-validation examples may be unstable.",
-      "chunkwise=TRUE but chunk_size is at least n; simulation will use one chunk."
+      "chunkwise=TRUE but chunk_size is at least n; simulation will use one chunk.",
+      "No fixed effects to plot."
     ),
     trigger=c(
       "Coordinate names/values look geographic in a distance-based spatial workflow.",
@@ -93,7 +96,8 @@ bottom_up_warning_catalogue <- function() {
       "Aggregation group contains NA.",
       "Posterior draw matrix contains NA/Inf.",
       "Synthetic n < 50.",
-      "chunkwise simulation is requested with chunk_size >= n."
+      "chunkwise simulation is requested with chunk_size >= n.",
+      "The fixed-effect posterior summary is empty after optional intercept removal."
     ),
     suggested_action=c(
       "Project coordinates and use matching distance units.",
@@ -123,7 +127,8 @@ bottom_up_warning_catalogue <- function() {
       "Supply complete group labels or accept exclusion.",
       "Inspect and correct the source posterior draws.",
       "Increase n for spatial/CV demonstrations.",
-      "Use a smaller chunk_size."
+      "Use a smaller chunk_size.",
+      "Check whether the fitted model contains fixed covariates or request the intercept when appropriate."
     ),
     stringsAsFactors=FALSE
   )
