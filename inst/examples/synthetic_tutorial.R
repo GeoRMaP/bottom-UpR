@@ -400,12 +400,17 @@ plot_spatial_field(gamma_fit)
 dev.off()
 
 # =============================================================================
-# 11. FOLD-SPECIFIC INLA COVARIATE SELECTION
+# 11. ONE-TIME COVARIATE SELECTION, THEN SEPARATE CV
 # =============================================================================
 
-# This is a generic tutorial selector supplied by the package.
-# In a real paper workflow, replace it with the exact prespecified selection rule
-# if a different rule is required.
+# The original nested-CV workflow can be expensive because a selector model is
+# fitted inside every fold. The default tutorial now separates these operations:
+#   1. select covariates once;
+#   2. run cross-validation using that fixed covariate set.
+#
+# This is much faster, but it is NOT nested feature-selection validation. If the
+# scientific target requires unbiased assessment of the selection procedure,
+# use selection_mode="fold" explicitly.
 
 selector_args <- list(
   fallback=3,
@@ -413,13 +418,62 @@ selector_args <- list(
   prior_sigma=c(1,0.05)
 )
 
+# Fast one-time PPB selection. Set spatial=TRUE and mesh=mesh if spatial
+# selection itself is required; using spatial=FALSE is substantially faster.
+gamma_selected <- bottom_up_inla_selector(
+  train_data=ea,
+  response="ppb",
+  buildings="buildings",
+  candidate_covariates=candidate_covariates,
+  response_type="ppb",
+  likelihood="gamma",
+  coords=c("x_m","y_m"),
+  hierarchical_effects=effects,
+  spatial=FALSE,
+  fallback=3,
+  verbose=TRUE
+)
+
+# One-time count selection.
+nb_selected <- bottom_up_inla_selector(
+  train_data=ea,
+  response="population_count",
+  buildings="buildings",
+  candidate_covariates=candidate_covariates,
+  response_type="count",
+  likelihood="negative binomial",
+  coords=c("x_m","y_m"),
+  hierarchical_effects=effects,
+  spatial=FALSE,
+  fallback=3,
+  verbose=TRUE
+)
+
+print(gamma_selected)
+print(nb_selected)
+
+# Optional one-time spatial selector using the already-built common mesh:
+#
+# gamma_selected_spatial <- bottom_up_inla_selector(
+#   train_data=ea,
+#   response="ppb",
+#   buildings="buildings",
+#   candidate_covariates=candidate_covariates,
+#   response_type="ppb",
+#   likelihood="gamma",
+#   coords=c("x_m","y_m"),
+#   hierarchical_effects=effects,
+#   spatial=TRUE,
+#   mesh=mesh,
+#   fallback=3,
+#   prior_range=c(100000,0.05),
+#   prior_sigma=c(1,0.05),
+#   verbose=TRUE
+# )
+
 # =============================================================================
 # 11B. FAST DEVELOPMENT CV
 # =============================================================================
-
-# Full cross-validation can take substantial time because each fold may fit a
-# selector model, a final model, and then draw from the joint posterior.
-# Use cv_profile="fast" while developing/debugging the workflow.
 
 gamma_cv_fast <- bottom_up_cv(
   data=ea,
@@ -428,13 +482,13 @@ gamma_cv_fast <- bottom_up_cv(
   response_type="ppb",
   likelihood="gamma",
   covariates=candidate_covariates,
+  fixed_covariates=gamma_selected,
+  selection_mode="separate",
   coords=c("x_m","y_m"),
   hierarchical_effects=effects,
   method="spatial_block",
   folds=5,
   block_size=100000,
-  covariate_selector=bottom_up_inla_selector,
-  selector_args=selector_args,
   standardize=TRUE,
   prediction_draws=200,
   mesh=mesh,
@@ -448,14 +502,28 @@ gamma_cv_fast <- bottom_up_cv(
 gamma_cv_fast$metrics
 gamma_cv_fast$fast_settings
 
-# For a quicker run that still performs fold-specific covariate selection:
-# gamma_cv_fast_selected <- bottom_up_cv(
-#   ...,
-#   cv_profile="fast",
-#   fast_keep_selector=TRUE
+# For fully nested fold-specific selection, request it explicitly:
+#
+# gamma_cv_nested <- bottom_up_cv(
+#   data=ea,
+#   response="ppb",
+#   buildings="buildings",
+#   response_type="ppb",
+#   likelihood="gamma",
+#   covariates=candidate_covariates,
+#   coords=c("x_m","y_m"),
+#   hierarchical_effects=effects,
+#   method="spatial_block",
+#   folds=5,
+#   block_size=100000,
+#   covariate_selector=bottom_up_inla_selector,
+#   selection_mode="fold",
+#   selector_spatial=FALSE,
+#   selector_args=list(fallback=3),
+#   mesh=mesh,
+#   prediction_draws=100,
+#   seed=99
 # )
-
-# Use cv_profile="full" for the final validation runs below.
 
 # =============================================================================
 # 12. RANDOM CV
@@ -472,8 +540,8 @@ gamma_random <- bottom_up_cv(
   hierarchical_effects=effects,
   method="random",
   folds=5,
-  covariate_selector=bottom_up_inla_selector,
-  selector_args=selector_args,
+  fixed_covariates=gamma_selected,
+  selection_mode="separate",
   standardize=TRUE,
   prediction_draws=100,
   mesh=mesh,
@@ -502,8 +570,8 @@ gamma_spatial100 <- bottom_up_cv(
   method="spatial_block",
   folds=5,
   block_size=100000,
-  covariate_selector=bottom_up_inla_selector,
-  selector_args=selector_args,
+  fixed_covariates=gamma_selected,
+  selection_mode="separate",
   standardize=TRUE,
   prediction_draws=100,
   mesh=mesh,
@@ -559,8 +627,8 @@ gamma_spatial50 <- bottom_up_cv(
   method="spatial_block",
   folds=5,
   block_size=50000,
-  covariate_selector=bottom_up_inla_selector,
-  selector_args=selector_args,
+  fixed_covariates=gamma_selected,
+  selection_mode="separate",
   standardize=TRUE,
   prediction_draws=100,
   mesh=mesh,
@@ -579,8 +647,8 @@ gamma_spatial150 <- bottom_up_cv(
   method="spatial_block",
   folds=5,
   block_size=150000,
-  covariate_selector=bottom_up_inla_selector,
-  selector_args=selector_args,
+  fixed_covariates=gamma_selected,
+  selection_mode="separate",
   standardize=TRUE,
   prediction_draws=100,
   mesh=mesh,
@@ -602,8 +670,8 @@ gamma_loro <- bottom_up_cv(
   hierarchical_effects=effects,
   method="loro",
   group="region",
-  covariate_selector=bottom_up_inla_selector,
-  selector_args=selector_args,
+  fixed_covariates=gamma_selected,
+  selection_mode="separate",
   standardize=TRUE,
   prediction_draws=100,
   mesh=mesh,
@@ -621,8 +689,8 @@ gamma_loso <- bottom_up_cv(
   hierarchical_effects=effects,
   method="loso",
   group="source",
-  covariate_selector=bottom_up_inla_selector,
-  selector_args=selector_args,
+  fixed_covariates=gamma_selected,
+  selection_mode="separate",
   standardize=TRUE,
   prediction_draws=100,
   mesh=mesh,
@@ -645,8 +713,8 @@ nb_spatial100 <- bottom_up_cv(
   method="spatial_block",
   folds=5,
   block_size=100000,
-  covariate_selector=bottom_up_inla_selector,
-  selector_args=selector_args,
+  fixed_covariates=nb_selected,
+  selection_mode="separate",
   standardize=TRUE,
   prediction_draws=100,
   mesh=mesh,
