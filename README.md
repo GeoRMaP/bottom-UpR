@@ -424,3 +424,73 @@ The `verbose` argument is available on the major workflow functions, including
 model specification/fitting, mesh construction, simulation, covariate
 selection, cross-validation, posterior prediction, observation-level
 prediction, aggregation, and Shiny demo launching.
+
+
+## Full-data and chunk-wise synthetic simulation
+
+The tutorial simulator can generate all rows in one block:
+
+```r
+ea_full <- simulate_bottom_up_data(
+  n = 250,
+  seed = 2026,
+  chunkwise = FALSE
+)
+```
+
+or generate the same synthetic data in chunks:
+
+```r
+ea_chunked <- simulate_bottom_up_data(
+  n = 250,
+  seed = 2026,
+  chunkwise = TRUE,
+  chunk_size = 60
+)
+```
+
+With the same seed, the tutorial verifies reproducible equivalence:
+
+```r
+stopifnot(
+  isTRUE(
+    all.equal(
+      ea_full,
+      ea_chunked,
+      tolerance = 0,
+      check.attributes = TRUE
+    )
+  )
+)
+```
+
+The same principle is demonstrated for posterior gridded prediction:
+`chunkwise = FALSE` processes the whole grid in one block, while
+`chunkwise = TRUE` processes it in memory-bounded chunks while preserving the
+same posterior draw identities.
+
+## Warning catalogue and warning demo
+
+List all package-level warning messages/patterns, triggers, and recommended
+actions:
+
+```r
+bottom_up_warning_catalogue()
+```
+
+Run the synthetic warning demonstration:
+
+```r
+warning_demo <- system.file(
+  "examples",
+  "synthetic_warning_demo.R",
+  package = "bottom.UpR"
+)
+
+source(warning_demo)
+```
+
+The demo intentionally triggers deterministic warnings and prints the complete
+warning catalogue. Data-dependent INLA diagnostics such as CPO failures or
+optimizer-status warnings are listed in the catalogue rather than deliberately
+forced through pathological fits.
