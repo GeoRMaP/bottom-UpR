@@ -600,3 +600,56 @@ Set `selector_spatial = TRUE` only when spatial covariate selection is
 scientifically required. In that case the common CV mesh is passed to
 `bottom_up_inla_selector()`, so the selector no longer rebuilds a mesh inside
 every fold.
+
+
+## Fitting-efficiency changes
+
+Recent versions reduce avoidable INLA work:
+
+- covariate selection is separate from cross-validation by default;
+- CV reuses one common mesh rather than rebuilding a selector mesh per fold;
+- fold-specific selection is opt-in through `selection_mode = "fold"`;
+- fold selectors are non-spatial by default through `selector_spatial = FALSE`;
+- automatic likelihood selection reuses the already-fitted selected candidate,
+  so `likelihood = "auto"` no longer performs a redundant third INLA fit.
+
+For the fastest ordinary validation workflow, select covariates once and then
+run CV on the fixed set:
+
+```r
+selected <- bottom_up_inla_selector(
+  train_data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  candidate_covariates = candidate_covariates,
+  response_type = "ppb",
+  likelihood = "gamma",
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  spatial = FALSE,
+  fallback = 3
+)
+
+cv <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = candidate_covariates,
+  fixed_covariates = selected,
+  selection_mode = "separate",
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  method = "random",
+  folds = 5,
+  prediction_draws = 100,
+  mesh = mesh
+)
+```
+
+This requires one selector fit plus one model fit per CV fold, rather than one
+selector fit and one model fit inside every fold. Because selection uses the
+full data in this faster workflow, it does not estimate the extra uncertainty
+from the selection procedure itself. Use `selection_mode = "fold"` when that
+nested validation target is required.
