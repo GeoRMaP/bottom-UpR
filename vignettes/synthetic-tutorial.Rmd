@@ -522,9 +522,8 @@ cv_fast_workflow <- bottom_up_cv(
   buildings = "buildings",
   response_type = "ppb",
   likelihood = "gamma",
-  covariates = candidate_covariates,
-  fixed_covariates = selected,
-  selection_mode = "separate",
+  covariates = selected,
+  covariate_selector = NULL,
   coords = c("x_m", "y_m"),
   hierarchical_effects = effects,
   spatial = TRUE,
@@ -568,3 +567,33 @@ cv_nested <- bottom_up_cv(
 
 The nested option is statistically stricter for evaluating the selection
 procedure, but substantially more computationally expensive.
+
+
+## Compatibility note for faster CV
+
+For maximum compatibility with older installed versions, the fastest separated
+workflow can simply pass the pre-selected variables directly through
+`covariates` and set `covariate_selector = NULL`:
+
+```r
+cv_compatible <- bottom_up_cv(
+  data = ea,
+  response = "ppb",
+  buildings = "buildings",
+  response_type = "ppb",
+  likelihood = "gamma",
+  covariates = selected,
+  covariate_selector = NULL,
+  coords = c("x_m", "y_m"),
+  hierarchical_effects = effects,
+  spatial = TRUE,
+  method = "spatial_block",
+  folds = 5,
+  block_size = 100000,
+  prediction_draws = 100,
+  mesh = mesh
+)
+```
+
+This form also works with earlier package interfaces that do not yet expose
+`fixed_covariates` or `selection_mode`.
