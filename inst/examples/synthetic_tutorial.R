@@ -23,6 +23,16 @@ suppressPackageStartupMessages({
 
 set.seed(2026)
 
+# =============================================================================
+# PACKAGE INTERFACE CHECK
+# =============================================================================
+
+message("bottom.UpR version: ", as.character(packageVersion("bottom.UpR")))
+message(
+  "bottom_up_cv arguments: ",
+  paste(names(formals(bottom_up_cv)), collapse=", ")
+)
+
 OUT_DIR <- "synthetic_tutorial_output"
 dir.create(OUT_DIR,showWarnings=FALSE,recursive=TRUE)
 
@@ -480,9 +490,8 @@ gamma_cv_fast <- bottom_up_cv(
   buildings="buildings",
   response_type="ppb",
   likelihood="gamma",
-  covariates=candidate_covariates,
-  fixed_covariates=gamma_selected,
-  selection_mode="separate",
+  covariates=gamma_selected,
+  covariate_selector=NULL,
   coords=c("x_m","y_m"),
   hierarchical_effects=effects,
   method="spatial_block",
