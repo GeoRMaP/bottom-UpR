@@ -34,82 +34,39 @@ install.packages(
 )
 ```
 
-If you already have a working INLA installation, you can keep it and continue
-to the next step.
+If you already have a working INLA installation, keep it and continue below.
 
-### 2. Install bottom-UpR from GitHub
+### 2. Recommended public install: bypass the GitHub API
 
-Start a fresh R session and install `remotes` if needed:
+On some Windows/RStudio setups, `remotes::install_github()` can still pick up
+an invalid credential from the Git credential store and return
+`HTTP error 401: Bad credentials`, even for a public repository.
 
-```r
-install.packages("remotes")
-```
-
-For a public install, explicitly disable GitHub authentication:
+The most robust installation route is therefore to install the public source
+archive directly:
 
 ```r
-Sys.unsetenv("GITHUB_PAT")
-Sys.unsetenv("GITHUB_TOKEN")
+# Restart R first and do not load bottom.UpR before reinstalling.
 
-remotes::install_github(
-  "GeoRMaP/bottom-UpR",
-  ref = "main",
-  force = TRUE,
-  build_vignettes = FALSE,
-  upgrade = "never",
-  auth_token = NULL
+install.packages(
+  "https://github.com/GeoRMaP/bottom-UpR/archive/refs/heads/main.tar.gz",
+  repos = NULL,
+  type = "source"
 )
-```
 
-Then load the package and verify the installed version:
-
-```r
 library(bottom.UpR)
-
 packageVersion("bottom.UpR")
 find.package("bottom.UpR")
 ```
 
-### If you get `HTTP error 401: Bad credentials`
+This route downloads the public `main` branch directly and does not use the
+GitHub API authentication step used by `remotes::install_github()`.
 
-A 401 error can occur when `remotes` automatically picks up an expired or
-invalid GitHub credential even though this repository is public.
-
-First, check and clear any token stored in the current R session:
+If an older copy is installed and you want a completely clean reinstall:
 
 ```r
-Sys.getenv("GITHUB_PAT")
-Sys.getenv("GITHUB_TOKEN")
+remove.packages("bottom.UpR")
 
-Sys.unsetenv("GITHUB_PAT")
-Sys.unsetenv("GITHUB_TOKEN")
-```
-
-Restart R and try the public installation again with `auth_token = NULL`.
-
-On Windows, if the installer still prints:
-
-```text
-Using GitHub PAT from the git credential store.
-```
-
-remove the stale `github.com` credential from:
-
-```text
-Control Panel
-> Credential Manager
-> Windows Credentials
-```
-
-Then restart R or RStudio and rerun the installation command.
-
-### Direct public-source fallback
-
-If GitHub authentication continues to interfere with `remotes`, install the
-public source archive directly, which avoids the GitHub API authentication
-step:
-
-```r
 install.packages(
   "https://github.com/GeoRMaP/bottom-UpR/archive/refs/heads/main.tar.gz",
   repos = NULL,
@@ -120,8 +77,72 @@ library(bottom.UpR)
 packageVersion("bottom.UpR")
 ```
 
-If an older copy of `bottom.UpR` is already loaded, restart R before
-reinstalling. R cannot reliably replace a package that is currently in use.
+### Alternative: `remotes::install_url()`
+
+You can also use `remotes` without calling the GitHub API:
+
+```r
+install.packages("remotes")
+
+remotes::install_url(
+  "https://github.com/GeoRMaP/bottom-UpR/archive/refs/heads/main.tar.gz",
+  dependencies = FALSE,
+  upgrade = "never",
+  build_vignettes = FALSE,
+  force = TRUE
+)
+
+library(bottom.UpR)
+packageVersion("bottom.UpR")
+```
+
+### Optional: repair GitHub credentials before using `install_github()`
+
+Only use this section if you specifically want
+`remotes::install_github()`.
+
+First inspect and clear session-level GitHub tokens:
+
+```r
+Sys.getenv("GITHUB_PAT")
+Sys.getenv("GITHUB_TOKEN")
+
+Sys.unsetenv("GITHUB_PAT")
+Sys.unsetenv("GITHUB_TOKEN")
+```
+
+If R still reports that it is using a GitHub PAT from the credential store,
+remove the stale GitHub credential. On Windows this can be done through:
+
+```text
+Control Panel
+> Credential Manager
+> Windows Credentials
+> remove the github.com credential
+```
+
+Alternatively, from R:
+
+```r
+install.packages("gitcreds")
+gitcreds::gitcreds_delete()
+```
+
+Restart R/RStudio after removing the credential. Then:
+
+```r
+remotes::install_github(
+  "GeoRMaP/bottom-UpR",
+  ref = "main",
+  force = TRUE,
+  build_vignettes = FALSE,
+  upgrade = "never",
+  auth_token = NULL
+)
+```
+
+If this still returns HTTP 401, use the direct source-archive installation
+above instead of continuing to troubleshoot authentication.
 
 ## Optional and adaptable hierarchical effects
 
