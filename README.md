@@ -18,7 +18,10 @@ log CPO on the original response scale.
 
 ## Installation
 
-Install R-INLA and then bottom-UpR:
+The repository is public, so a GitHub personal access token (PAT) is not
+required.
+
+### 1. Install R-INLA
 
 ```r
 install.packages(
@@ -29,11 +32,96 @@ install.packages(
   ),
   dep = TRUE
 )
-
-install.packages("remotes")
-remotes::install_github("GeoRMaP/bottom-UpR")
-library(bottom.UpR)
 ```
+
+If you already have a working INLA installation, you can keep it and continue
+to the next step.
+
+### 2. Install bottom-UpR from GitHub
+
+Start a fresh R session and install `remotes` if needed:
+
+```r
+install.packages("remotes")
+```
+
+For a public install, explicitly disable GitHub authentication:
+
+```r
+Sys.unsetenv("GITHUB_PAT")
+Sys.unsetenv("GITHUB_TOKEN")
+
+remotes::install_github(
+  "GeoRMaP/bottom-UpR",
+  ref = "main",
+  force = TRUE,
+  build_vignettes = FALSE,
+  upgrade = "never",
+  auth_token = NULL
+)
+```
+
+Then load the package and verify the installed version:
+
+```r
+library(bottom.UpR)
+
+packageVersion("bottom.UpR")
+find.package("bottom.UpR")
+```
+
+### If you get `HTTP error 401: Bad credentials`
+
+A 401 error can occur when `remotes` automatically picks up an expired or
+invalid GitHub credential even though this repository is public.
+
+First, check and clear any token stored in the current R session:
+
+```r
+Sys.getenv("GITHUB_PAT")
+Sys.getenv("GITHUB_TOKEN")
+
+Sys.unsetenv("GITHUB_PAT")
+Sys.unsetenv("GITHUB_TOKEN")
+```
+
+Restart R and try the public installation again with `auth_token = NULL`.
+
+On Windows, if the installer still prints:
+
+```text
+Using GitHub PAT from the git credential store.
+```
+
+remove the stale `github.com` credential from:
+
+```text
+Control Panel
+> Credential Manager
+> Windows Credentials
+```
+
+Then restart R or RStudio and rerun the installation command.
+
+### Direct public-source fallback
+
+If GitHub authentication continues to interfere with `remotes`, install the
+public source archive directly, which avoids the GitHub API authentication
+step:
+
+```r
+install.packages(
+  "https://github.com/GeoRMaP/bottom-UpR/archive/refs/heads/main.tar.gz",
+  repos = NULL,
+  type = "source"
+)
+
+library(bottom.UpR)
+packageVersion("bottom.UpR")
+```
+
+If an older copy of `bottom.UpR` is already loaded, restart R before
+reinstalling. R cannot reliably replace a package that is currently in use.
 
 ## Optional and adaptable hierarchical effects
 
