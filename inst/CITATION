@@ -3,15 +3,9 @@ citHeader("To cite bottom-UpR in publications, please use:")
 bibentry(
   bibtype = "Manual",
   title = "{bottom-UpR}: Bayesian Bottom-Up Population Modelling with INLA-SPDE",
-  author = c(
-    person(
-      given = c("Chibuzor", "Christopher"),
-      family = "Nnanatu"
-    ),
-    person(
-      given = c("Andrew", "J"),
-      family = "Tatem"
-    )
+  author = person(
+    given = c("Chibuzor", "Christopher"),
+    family = "Nnanatu"
   ),
   year = "2026",
   note = "R package version 0.2.1",
