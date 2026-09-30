@@ -1579,9 +1579,9 @@ The source file is located at:
 
 If you use `bottom-UpR`, cite:
 
-> Nnanatu, Chibuzor Christopher & Tatem, Andrew J. (2026).
+> Nnanatu, Chibuzor Christopher. (2026).
 > *bottom-UpR: Bayesian Bottom-Up Population Modelling with INLA-SPDE*.
-> R package version 0.2.0.
+> R package version 0.2.1.
 > https://github.com/GeoRMaP/bottom-UpR
 
 The current citation can also be obtained directly from R:
